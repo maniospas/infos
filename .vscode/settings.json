@@ -14,6 +14,8 @@
         "interrupts.h": "c",
         "console.h": "c",
         "compare": "c",
-        "cstdint": "c"
+        "cstdint": "c",
+        "memory.h": "c",
+        "dynamic.h": "c"
     }
 }

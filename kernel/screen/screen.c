@@ -51,7 +51,7 @@ extern uint64_t pd_table[];
 
 extern uint64_t pml4_table[];
 extern uint64_t pdpt_table[];
-extern uint64_t pd_tables[512][512]; // optional, but shows concept
+//extern uint64_t pd_tables[512][512]; // optional, but shows concept
 
 
 void map_framebuffer(uint64_t phys_addr, uint64_t size_bytes) {
@@ -160,8 +160,8 @@ void fb_put_char(char c) {
         return;
     }
     const uint8_t *glyph = &font8x16[16 * (uint8_t)c];
-    for (int y = 0; y < CHAR_H; y++) {
-        for (int x = 0; x < CHAR_W; x++) {
+    for (uint32_t y = 0; y < CHAR_H; y++) {
+        for (uint32_t x = 0; x < CHAR_W; x++) {
             if (glyph[y*invscale] & (1 << (7 - x*invscale)))
                 fb_putpixel(cursor_x+x, cursor_y+y, fg_color);
             else
@@ -185,8 +185,8 @@ void fb_removechar(void) {
     else 
         cursor_x -= CHAR_W;
     
-    for (int y = 0; y < CHAR_H; y++)
-        for (int x = 0; x < CHAR_W; x++)
+    for (uint32_t y = 0; y < CHAR_H; y++)
+        for (uint32_t x = 0; x < CHAR_W; x++)
             fb_putpixel(cursor_x + x, cursor_y + y, bg_color);
 }
 
@@ -206,6 +206,43 @@ static uint32_t ansi_to_rgb(int code) {
         case 37: return 0xFFFFFF;
         default: return 0xFFFFFF;
     }
+}
+
+// Write unsigned integer in decimal
+void fb_write_dec(uint64_t num) {
+    char buf[32];
+    int i = 0;
+
+    if (num == 0) {
+        fb_put_char('0');
+        return;
+    }
+
+    while (num > 0 && i < (int)sizeof(buf)) {
+        buf[i++] = '0' + (num % 10);
+        num /= 10;
+    }
+
+    while (i--) {
+        fb_put_char(buf[i]);
+    }
+}
+
+// Write 64-bit value in hexadecimal (with no 0x prefix)
+void fb_write_hex(uint64_t val) {
+    const char *hex = "0123456789ABCDEF";
+    int shift = 60;
+    int leading = 1;
+
+    for (; shift >= 0; shift -= 4) {
+        uint8_t nibble = (val >> shift) & 0xF;
+        if (nibble == 0 && leading && shift)
+            continue;
+        leading = 0;
+        fb_put_char(hex[nibble]);
+    }
+    if (leading)
+        fb_put_char('0');
 }
 
 void fb_write_ansi(const char *s) {

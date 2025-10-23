@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
 
-struct FAT32_BPB {
+struct __attribute__((packed)) FAT32_BPB {
     uint8_t  jmpBoot[3];
     uint8_t  OEMName[8];
     uint16_t BytsPerSec;
@@ -20,9 +20,18 @@ struct FAT32_BPB {
     uint16_t ExtFlags;
     uint16_t FSVer;
     uint32_t RootClus;
-} __attribute__((packed));
+    uint16_t FSInfo;
+    uint16_t BkBootSec;
+    uint8_t  Reserved[12];
+    uint8_t  DrvNum;
+    uint8_t  Reserved1;
+    uint8_t  BootSig;
+    uint32_t VolID;
+    uint8_t  VolLab[11];
+    uint8_t  FilSysType[8];
+};
 
-struct FAT32_DirEntry {
+struct __attribute__((packed)) FAT32_DirEntry {
     uint8_t  Name[11];
     uint8_t  Attr;
     uint8_t  NTRes;
@@ -35,8 +44,10 @@ struct FAT32_DirEntry {
     uint16_t WrtDate;
     uint16_t FstClusLO;
     uint32_t FileSize;
-} __attribute__((packed));
+};
 
-int fat32_init();
+// API
+int fat32_init(uint32_t partition_lba_start);
 void fat32_ls_root();
-void fat32_cat(const char* filename);
+void fat32_cat(const char *filename);
+uint32_t find_fat32_partition();

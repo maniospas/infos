@@ -30,7 +30,7 @@
 struct multiboot_tag {
     uint32_t type;
     uint32_t size;
-};
+} __attribute__((packed));
 
 // --- Framebuffer tag ---
 struct multiboot_tag_framebuffer {
@@ -43,3 +43,18 @@ struct multiboot_tag_framebuffer {
     uint8_t  framebuffer_type;
     uint16_t reserved;
 };
+
+struct multiboot_mmap_entry {
+    uint64_t addr;
+    uint64_t len;
+    uint32_t type;
+    uint32_t zero;
+} __attribute__((packed));
+
+struct multiboot_tag_mmap {
+    uint32_t type;
+    uint32_t size;
+    uint32_t entry_size;
+    uint32_t entry_version;
+    struct multiboot_mmap_entry entries[0];
+} __attribute__((packed));
