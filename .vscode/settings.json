@@ -1,0 +1,19 @@
+{
+    "files.associations": {
+        "*.cm": "rust",
+        "*.st": "ruby",
+        "string.h": "c",
+        "stddef.h": "c",
+        "stdint.h": "c",
+        "screen.h": "c",
+        "font8x16.h": "c",
+        "multiboot2.h": "c",
+        "fat32.h": "c",
+        "keyboard.h": "c",
+        "vga.h": "c",
+        "interrupts.h": "c",
+        "console.h": "c",
+        "compare": "c",
+        "cstdint": "c"
+    }
+}
