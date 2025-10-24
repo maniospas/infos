@@ -180,7 +180,7 @@ void fb_put_char(char c) {
     }
 
     // === handle scrolling ===
-    if (cursor_y + CHAR_H >= fb_height - margin) {
+    if (cursor_y + CHAR_H >= fb_height - margin && cursor_y>=CHAR_H) {
         // Number of pixels in one text line
         uint32_t line_bytes = fb_pitch * CHAR_H;
         uint32_t visible_bytes = fb_pitch * (fb_height - CHAR_H);
@@ -189,21 +189,12 @@ void fb_put_char(char c) {
         uint8_t *dst = (uint8_t *)fb_addr;
         uint8_t *src = (uint8_t *)fb_addr + line_bytes;
 
-        // Move all rows up
-        for (uint32_t y = 0; y < fb_height - CHAR_H; y++) {
-            uint32_t *dst_row = (uint32_t *)(dst + y * fb_pitch);
-            uint32_t *src_row = (uint32_t *)(src + y * fb_pitch);
-            for (uint32_t x = 0; x < fb_width; x++) {
-                dst_row[x] = src_row[x];
-            }
-        }
-
-        // Clear bottom line
+        for (uint32_t y = 0; y < fb_height - CHAR_H; y++) 
+            for (uint32_t x = 0; x < fb_width; x++) 
+                fb_addr[y*fb_width + x] = fb_addr[(y+CHAR_H)*fb_width + x];
         for (uint32_t y = fb_height - CHAR_H; y < fb_height; y++) {
-            uint32_t *row = (uint32_t *)((uint8_t *)fb_addr + y * fb_pitch);
-            for (uint32_t x = 0; x < fb_width; x++) {
-                row[x] = bg_color;
-            }
+            for (uint32_t x = 0; x < fb_width; x++) 
+                fb_addr[y*fb_width + x] = bg_color;
         }
 
         cursor_y -= CHAR_H;
@@ -234,9 +225,9 @@ static uint32_t ansi_to_rgb(int code) {
     switch (code) {
         case 30: return 0x1F1F1F;
         case 31: return 0xEE7A7A;
-        case 32: return 0x66EE66;
+        case 32: return 0x66DD88;
         case 33: return 0xEEEE88;
-        case 34: return 0x6666EE;
+        case 34: return 0x5599EE;
         case 35: return 0xEE88EE;
         case 36: return 0x66EEEE;
         case 37: return 0xEEEEEE;

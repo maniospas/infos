@@ -206,12 +206,12 @@ void fat32_ls(uint32_t dir_cluster) {
                 const char *disp = choose_name(lfn_buf, shortnm);
 
                 fb_write("  ");
-                if (e[i].Attr & 0x10) fb_write_ansi("\033[35m");
+                if (e[i].Attr & 0x10) fb_write_ansi("\033[33m");
                 fb_write(disp);
                 if (e[i].Attr & 0x10) fb_write_ansi("\033[0m");
                 else {
                     fb_write(" ");
-                    fb_write_ansi("\033[32m");
+                    fb_write_ansi("\033[36m");
                     fb_write_dec(e[i].FileSize);
                     fb_write_ansi(" bytes\033[0m");
                 }

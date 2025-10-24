@@ -1,0 +1,15 @@
+// {} designate a "file"
+// call per name arg1 arg2 
+// set a value per \var
+// there's no free in programs - they are supposed to be small
+// we tokenize the file into a linked list of 4k buffers
+// files are lists of command chare* pointers
+// parsing has a context and parent context - importantly, this is passed between files and the top context is the current directory
+// contexts are basically dicts from names to values, and it just happens that 
+
+let adder {
+    let x (Float pop args)
+    let y (Float pop args)
+    return (add x y) // also asserts that there are no leftover args
+}
+print (adder 1 2)

@@ -19,7 +19,7 @@ static void poweroff(void) {
 }
 
 void console_prompt(void) {
-    fb_write_ansi("\x1b[35m");
+    fb_write_ansi("\x1b[33m");
     fb_write(fat32_get_current_path());
     fb_write(": ");
     fb_write_ansi("\x1b[0m");
@@ -72,13 +72,13 @@ static void fb_draw_bar(uint32_t used, uint32_t total, uint8_t width) {
 
 void console_execute(const char *cmd) {
     if (!strcmp(cmd, "help")) {
-        fb_write_ansi("\n  \033[36mhelp\033[0m   - Show this help\n");
-        fb_write_ansi("  \033[36mls\033[0m     - List files in current directory\n");
-        fb_write_ansi("  \033[36mcd\033[0m X   - Change directory (use /home for root)\n");
-        fb_write_ansi("  \033[36mcat\033[0m X  - Print file contents\n");
-        fb_write_ansi("  \033[36mps\033[0m     - Show memory & disk usage\n");
-        fb_write_ansi("  \033[36mclear\033[0m  - Clear screen\n");
-        fb_write_ansi("  \033[36mexit\033[0m   - Shut down\n");
+        fb_write_ansi("\n  \033[32mhelp\033[0m   - Show this help\n");
+        fb_write_ansi("  \033[32mls\033[0m     - List files in current directory\n");
+        fb_write_ansi("  \033[32mcd\033[0m X   - Change directory (use /home for root)\n");
+        fb_write_ansi("  \033[32mcat\033[0m X  - Print file contents\n");
+        fb_write_ansi("  \033[32mps\033[0m     - Show memory & disk usage\n");
+        fb_write_ansi("  \033[32mclear\033[0m  - Clear screen\n");
+        fb_write_ansi("  \033[32mexit\033[0m   - Shut down\n");
         fb_write("\n");
     }
 
@@ -119,9 +119,15 @@ void console_execute(const char *cmd) {
         margin = 10;
         fb_clear();
         fb_set_scale(6, 1);
-        fb_write_ansi("\x1b[33minfOS\n\x1b[0m");
+        fb_write_ansi(
+            "\x1b[32m"
+            "LettuOS\n"
+            "\x1b[0m"
+        );
         margin = 20;
-        fb_set_scale(2, 1);
+
+        fb_set_scale(2,1);
+        fb_write("A healthy operating system.\n");
         fb_write("\n");
     }
 

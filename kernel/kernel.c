@@ -18,13 +18,14 @@ void kernel_main(void) {
     fb_clear();
     fb_set_scale(6, 1);
     fb_write_ansi(
-        "\x1b[33m"
-        "infOS\n"
+        "\x1b[32m"
+        "LettuOS\n"
         "\x1b[0m"
     );
     margin = 20;
 
     fb_set_scale(2,1);
+    fb_write("A healthy operating system.\n");
     memory_init(multiboot_info_ptr);
     paging_map_heap();
     memory_buddy_init();
