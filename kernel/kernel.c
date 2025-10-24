@@ -9,6 +9,7 @@
 #include "memory/dynamic.h" 
 
 extern void* multiboot_info_ptr;
+int text_size = 1;
 
 __attribute__((noreturn))
 void kernel_main(void) {
@@ -16,7 +17,7 @@ void kernel_main(void) {
 
     margin = 10;
     fb_clear();
-    fb_set_scale(6, 1);
+    fb_set_scale(6+text_size, 1+text_size);
     fb_write_ansi(
         "\x1b[32m"
         "LettuOS\n"
@@ -24,7 +25,7 @@ void kernel_main(void) {
     );
     margin = 20;
 
-    fb_set_scale(2,1);
+    fb_set_scale(2+text_size,1+text_size);
     fb_write("A healthy operating system.\n");
     memory_init(multiboot_info_ptr);
     paging_map_heap();

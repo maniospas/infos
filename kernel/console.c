@@ -5,7 +5,9 @@
 #include "string.h"
 #include "io.h"
 #include "memory/memory.h" 
-#include "memory/dynamic.h" 
+#include "memory/dynamic.h"
+
+extern int text_size;
 
 // === Local helper to power off system ===
 static void poweroff(void) {
@@ -78,6 +80,7 @@ void console_execute(const char *cmd) {
         fb_write_ansi("  \033[32mcat\033[0m X  - Print file contents\n");
         fb_write_ansi("  \033[32mps\033[0m     - Show memory & disk usage\n");
         fb_write_ansi("  \033[32mclear\033[0m  - Clear screen\n");
+        fb_write_ansi("  \033[32mtext\033[0m X - Sets font X among big, small, default\n");
         fb_write_ansi("  \033[32mexit\033[0m   - Shut down\n");
         fb_write("\n");
     }
@@ -114,11 +117,34 @@ void console_execute(const char *cmd) {
     else if (!strncmp(cmd, "cat ", 4)) {
         fat32_cat(cmd + 4);
     }
-
+    else if (!strncmp(cmd, "text ", 5)) {
+        const char *arg = cmd + 5;
+        if (!strcmp(arg, "small")) 
+            text_size = 2;
+        else if (!strcmp(arg, "big")) 
+            text_size = 0;
+        else if (!strcmp(arg, "default")) 
+            text_size = 1;
+        else {
+            fb_write_ansi("\x1b[31mERROR\x1b[0m Valid usage: text big | text small | text default\n");
+            return;
+        }
+        margin = 10;
+        fb_clear();
+        fb_set_scale(6 + text_size, 1 + text_size);
+        fb_write_ansi(
+            "\x1b[32m"
+            "LettuOS\n"
+            "\x1b[0m"
+        );
+        margin = 20;
+        fb_set_scale(2+(text_size>=2?1:text_size),1+text_size);
+        fb_write("\n");
+    }
     else if (!strcmp(cmd, "clear")) {
         margin = 10;
         fb_clear();
-        fb_set_scale(6, 1);
+        fb_set_scale(6+text_size, 1+text_size);
         fb_write_ansi(
             "\x1b[32m"
             "LettuOS\n"
@@ -126,8 +152,7 @@ void console_execute(const char *cmd) {
         );
         margin = 20;
 
-        fb_set_scale(2,1);
-        fb_write("A healthy operating system.\n");
+        fb_set_scale(2+(text_size>=2?1:text_size),1+text_size);
         fb_write("\n");
     }
 
