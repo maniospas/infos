@@ -231,6 +231,7 @@ static uint32_t ansi_to_rgb(int code) {
         case 35: return 0xEE88EE;
         case 36: return 0x66EEEE;
         case 37: return 0xEEEEEE;
+        case 90: return 0x7A7A7A;
         default: return 0xEEEEEE;
     }
 }

@@ -348,10 +348,63 @@ void fat32_cd(const char *path) {
 // -----------------------------------------------------------------------------
 // cat with LFN support
 // -----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// cat with LFN support + highlighting for extensionless files
+// -----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// cat with LFN support + highlighting for extensionless files (no stdlib)
+// -----------------------------------------------------------------------------
+
+// --- Minimal helper functions ---
+static int str_len(const char *s) {
+    int n = 0;
+    while (s && s[n]) n++;
+    return n;
+}
+
+static const char* str_find_last_dot(const char *s) {
+    const char *last = 0;
+    while (s && *s) {
+        if (*s == '.') last = s;
+        s++;
+    }
+    return last;
+}
+
+static int str_casecmp(const char *a, const char *b) {
+    while (*a && *b) {
+        char ca = *a, cb = *b;
+        if (ca >= 'A' && ca <= 'Z') ca += 'a' - 'A';
+        if (cb >= 'A' && cb <= 'Z') cb += 'a' - 'A';
+        if (ca != cb) return ca - cb;
+        a++; b++;
+    }
+    return *a - *b;
+}
+
+static int str_ncmp(const char *a, const char *b, int n) {
+    for (int i = 0; i < n; i++) {
+        if (a[i] != b[i] || !a[i] || !b[i])
+            return a[i] - b[i];
+    }
+    return 0;
+}
+
+static int is_alnum(char c) {
+    return ((c >= 'A' && c <= 'Z') ||
+            (c >= 'a' && c <= 'z') ||
+            (c >= '0' && c <= '9'));
+}
+
+// -----------------------------------------------------------------------------
 void fat32_cat(const char *filename) {
     uint32_t cluster = current_dir_cluster;
     uint8_t sector_buf[512];
     int eps = bpb.BytsPerSec / sizeof(struct FAT32_DirEntry);
+
+    // Detect if the file has an extension
+    const char *dot = str_find_last_dot(filename);
+    int has_extension = (dot && *(dot + 1) != 0);
 
     while (cluster != 0) {
         uint32_t lba = cluster_to_lba(cluster);
@@ -374,7 +427,7 @@ void fat32_cat(const char *filename) {
                 char shortnm[13]; make_short_name_lower(e[i].Name, shortnm);
                 const char *cand = choose_name(lfn_buf, shortnm);
 
-                if (!strcasecmp(cand, filename) && !(e[i].Attr & 0x10)) {
+                if (!str_casecmp(cand, filename) && !(e[i].Attr & 0x10)) {
                     uint32_t fclus = (e[i].FstClusHI << 16) | e[i].FstClusLO;
                     uint32_t size  = e[i].FileSize;
                     uint32_t bytes_read = 0;
@@ -389,17 +442,78 @@ void fat32_cat(const char *filename) {
                         fclus = get_next_cluster(fclus);
                     }
 
-                    for (uint32_t k = 0; k < bytes_read && k < size; k++) fb_put_char(file_buffer[k]);
-                    fb_put_char('\n');
+                    // Display with or without highlighting
+                    if (!has_extension) {
+                        char *ptr = (char *)file_buffer;
+                        uint32_t i = 0;
+                        while (i < size && i < bytes_read) {
+                            char c = ptr[i];
+
+                            // Gray comments (#)
+                            if (c == '#') {
+                                fb_write_ansi("\x1b[90m");
+                                while (i < size && ptr[i] != '\n') {
+                                    fb_put_char(ptr[i++]);
+                                }
+                                fb_write_ansi("\x1b[0m");
+                                if (i < size) fb_put_char(ptr[i++]);
+                                continue;
+                            }
+
+                            // Green for keywords and braces
+                            if (!str_ncmp(&ptr[i], "let", 3) && !is_alnum(ptr[i+3])) {
+                                fb_write_ansi("\x1b[32mlet\x1b[0m");
+                                i += 3;
+                                continue;
+                            }
+                            if (!str_ncmp(&ptr[i], "return", 6) && !is_alnum(ptr[i+6])) {
+                                fb_write_ansi("\x1b[32mreturn\x1b[0m");
+                                i += 6;
+                                continue;
+                            }
+                            if (c == '{' || c == '}') {
+                                fb_write_ansi("\x1b[32m");
+                                fb_put_char(c);
+                                fb_write_ansi("\x1b[0m");
+                                i++;
+                                continue;
+                            }
+
+                            // Yellow for parentheses
+                            if (c == '(' || c == ')') {
+                                fb_write_ansi("\x1b[33m");
+                                fb_put_char(c);
+                                fb_write_ansi("\x1b[0m");
+                                i++;
+                                continue;
+                            }
+
+                            // Default
+                            fb_put_char(c);
+                            i++;
+                        }
+                    } else {
+                        // Normal display for files with extensions
+                        for (uint32_t k = 0; k < bytes_read && k < size; k++)
+                            fb_put_char(file_buffer[k]);
+                    }
+
+                    fb_write("\n\n");
                     return;
                 }
+
                 lfn_buf[0] = 0;
             }
         }
         cluster = get_next_cluster(cluster);
     }
-    fb_write("File not found.\n");
+
+    fb_write_ansi("  \x1b[32mERROR\x1b[0m File not found: ");
+    fb_write(filename);
+    fb_write("\n");
 }
+
+
 
 // -----------------------------------------------------------------------------
 // Usage
