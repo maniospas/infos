@@ -22,7 +22,7 @@ static void poweroff(Window *win) {
 }
 
 void console_prompt(Window* win) {
-    fb_write_ansi(win, "\x1b[33m");
+    fb_write_ansi(win, "\n\x1b[33m");
     fb_write(win, fat32_get_current_path());
     fb_write(win, ": ");
     fb_write_ansi(win, "\x1b[0m");
@@ -93,7 +93,6 @@ void console_execute(Window *win, const char *cmd) {
         fb_write_ansi(win, "  \033[32mtext\033[0m X   - Sets font X among big, small, default\n");
         fb_write_ansi(win, "  \033[32mwidget\033[0m X - Keep running command X\n");
         fb_write_ansi(win, "  \033[32mexit\033[0m     - Shut down\n");
-        fb_write(win, "\n");
     }
     else if (!strcmp(cmd, "ps")) {
         uint64_t memory_size = memory_total_with_regions();

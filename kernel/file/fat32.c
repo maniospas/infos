@@ -190,7 +190,7 @@ void fat32_ls(Window* win, uint32_t dir_cluster) {
             char lfn_buf[256]; lfn_buf[0] = 0;
 
             for (int i = 0; i < eps; i++) {
-                if (e[i].Name[0] == 0x00) { fb_write(win, "\n"); return; }
+                if (e[i].Name[0] == 0x00) { return; }
                 if (e[i].Name[0] == 0xE5) { lfn_buf[0] = 0; continue; }
 
                 if (e[i].Attr == 0x0F) {
@@ -221,7 +221,6 @@ void fat32_ls(Window* win, uint32_t dir_cluster) {
         }
         cluster = get_next_cluster(cluster);
     }
-    fb_write(win, "\n");
 }
 
 // -----------------------------------------------------------------------------
@@ -322,7 +321,7 @@ void fat32_cd(Window *win, const char *path) {
                     if (!found_cluster) {
                         fb_write_ansi(win, "\n\033[31m  ERROR\033[0m No such directory: ");
                         fb_write(win, segment);
-                        fb_write(win, "\n\n");
+                        fb_write(win, "\n");
                         return;
                     }
 
@@ -416,7 +415,7 @@ void fat32_cat(Window* win, const char *filename) {
                 if (e[i].Name[0] == 0x00) {
                     fb_write_ansi(win, "\n\033[31m  ERROR\033[0m No such file: ");
                     fb_write(win, filename);
-                    fb_write(win, "\n\n");
+                    fb_write(win, "\n");
                     return;
                 }
                 if (e[i].Name[0] == 0xE5) { lfn_buf[0] = 0; continue; }
@@ -525,7 +524,7 @@ void fat32_cat(Window* win, const char *filename) {
                             fb_put_char(win, file_buffer[k]);
                     }
 
-                    fb_write(win, "\n\n");
+                    fb_write(win, "\n");
                     return;
                 }
 

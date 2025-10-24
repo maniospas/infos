@@ -71,8 +71,9 @@ void kernel_main(void) {
     // Event loop
     char buffer[4096];
     for (;;) {
-        for (int i = 0; i < 5; i++)
-            app_run(&apps[i]);  // only does something if run() is set
+        for (int i = 1; i < 5; i++) {
+            app_run(&apps[i]);  
+        }
         console_prompt(&windows[0]);
         console_readline(&windows[0], buffer, sizeof(buffer));
         console_execute(&windows[0], buffer);
