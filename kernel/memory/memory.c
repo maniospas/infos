@@ -3,7 +3,6 @@
 #include "../multiboot2.h"
 #include "../screen/screen.h"
 
-#define MAX_MEMORY_REGIONS 8
 #define MULTIBOOT_MEMORY_AVAILABLE 1
 
 #pragma GCC target("no-mmx,no-sse,no-sse2")
@@ -84,4 +83,11 @@ int memory_init(void *mb_info_ptr) {
         return MEM_ERR_NO_REGIONS;
 
     return MEM_OK;
+}
+
+uint64_t memory_total_with_regions(void) {
+    uint64_t total = 0;
+    for (size_t i = 0; i < memory_region_count; ++i)
+        total += memory_regions[i].len;
+    return total;
 }

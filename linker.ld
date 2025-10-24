@@ -11,7 +11,6 @@ SECTIONS {
   .text : { *(.text*) } :text
   .rodata : { *(.rodata*) } :text
   .data : { *(.data*) } :data
-  /* move .bss safely above the page tables */
   . = ALIGN(2M);
   .bss (NOLOAD) : {
       _bss_start = .;

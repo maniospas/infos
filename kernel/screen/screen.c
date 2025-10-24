@@ -13,11 +13,11 @@ static uint32_t fb_pitch = 0;
 static uint8_t  fb_bpp = 0;
 static uint32_t scale_nominator = 1;
 static uint32_t scale_denominator = 1;
-#define margin 20
+uint32_t margin = 0;
 #define scale scale_nominator/scale_denominator
 #define invscale scale_denominator/scale_nominator
 
-static size_t cursor_x = margin, cursor_y = margin;
+static size_t cursor_x, cursor_y;
 static uint32_t fg_color = 0xFFFFFF; // white
 static uint32_t bg_color = 0x000000; // black
 
@@ -136,6 +136,8 @@ static inline void fb_putpixel(int x, int y, uint64_t color) {
 }
 
 void fb_clear(void) {
+    cursor_x = margin;
+    cursor_y = margin;
     for (size_t y = 0; y < fb_height; y++) {
         uint8_t *row = (uint8_t *)fb_addr + y * fb_pitch;
         for (size_t x = 0; x < fb_width; x++) {

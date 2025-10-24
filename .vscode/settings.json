@@ -16,6 +16,7 @@
         "compare": "c",
         "cstdint": "c",
         "memory.h": "c",
-        "dynamic.h": "c"
+        "dynamic.h": "c",
+        "paging.h": "c"
     }
 }

@@ -145,16 +145,30 @@ align 4096
 global pml4_table
 global pdpt_table
 global pd_table
+global pd_table_heap
 
+; PML4 → PDPT
 pml4_table:
-    dq pdpt_table + 0x03
+    dq pdpt_table + 0x03        ; Present | RW
 align 4096
+
+; PDPT → PDs
 pdpt_table:
-    dq pd_table + 0x03
+    dq pd_table + 0x03          ; First PD: low memory (kernel)
+    dq pd_table_heap + 0x03     ; Second PD: heap region
+    times 510 dq 0              ; rest unused
 align 4096
+
+; PD #0 → first 64 MiB of memory
 pd_table:
     %assign i 0
     %rep 32
         dq (i * 0x200000) | 0x83
         %assign i i + 1
     %endrep
+    times (512 - 32) dq 0       ; fill rest with zeros
+align 4096
+
+; PD #1 → heap region (empty, mapped dynamically)
+pd_table_heap:
+    times 512 dq 0
