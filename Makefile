@@ -5,7 +5,7 @@ AS := nasm
 LD := $(PREFIX)ld
 
 KERNEL := kernel.elf
-ISO := infos.iso
+ISO := LettuOS.iso
 DISK_IMG := fat32.img
 
 # === Compiler & Linker Flags ===
@@ -61,8 +61,9 @@ $(DISK_IMG): disk
 # === Run Target ===
 run: $(ISO) $(DISK_IMG)
 	@echo "  QEMU (BIOS)"
-	qemu-system-x86_64 -cdrom $(ISO) -boot d -m 512M -vga virtio -display sdl \
-		-drive file=$(DISK_IMG),format=raw,media=disk
+	qemu-system-x86_64 -cdrom "LettuOS.iso" -boot d -m 512M -vga virtio -display sdl,gl=on -full-screen \
+    -drive file="fat32.img",format=raw,media=disk
+
 
 # === Clean ===
 clean:

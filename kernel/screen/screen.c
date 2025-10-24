@@ -200,7 +200,7 @@ void fb_put_char(Window* win, char c) {
     }
 
     // === handle scrolling ===
-    if (win->cursor_x!=win->x+margin && win->cursor_y + CHAR_H >= win->y+win->height - margin && win->cursor_y>=CHAR_H) {
+    if (win->cursor_y + CHAR_H >= win->y+win->height - margin && win->cursor_y>=CHAR_H) {
         for (uint32_t y = win->y; y < win->y+win->height - CHAR_H; y++) 
             for (uint32_t x = win->x; x < win->x+win->width; x++) 
                 fb_addr[y*fb_width + x] = fb_addr[(y+CHAR_H)*fb_width + x];

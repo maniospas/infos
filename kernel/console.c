@@ -85,14 +85,14 @@ void widget_run(Application* app) {
 void console_execute(Window *win, const char *cmd) {
     if (!strcmp(cmd, "help")) {
         fb_write_ansi(win, "\n  \033[32mhelp\033[0m     - Show this help\n");
-        fb_write_ansi(win, "  \033[32mls\033[0m       - List files in current directory\n");
-        fb_write_ansi(win, "  \033[32mcd\033[0m X     - Change directory (use /home for root)\n");
-        fb_write_ansi(win, "  \033[32mcat\033[0m X    - Print file contents\n");
-        fb_write_ansi(win, "  \033[32mps\033[0m       - Show memory & disk usage\n");
-        fb_write_ansi(win, "  \033[32mclear\033[0m    - Clear screen\n");
-        fb_write_ansi(win, "  \033[32mtext\033[0m X   - Sets font X among big, small, default\n");
-        fb_write_ansi(win, "  \033[32mwidget\033[0m X - Keep running command X\n");
-        fb_write_ansi(win, "  \033[32mexit\033[0m     - Shut down\n");
+        fb_write_ansi(win, "  \033[32mls\033[0m     - List files in current directory\n");
+        fb_write_ansi(win, "  \033[32mcd\033[0m X   - Change directory (use /home for root)\n");
+        fb_write_ansi(win, "  \033[32mcat\033[0m X  - Print file contents\n");
+        fb_write_ansi(win, "  \033[32mps\033[0m     - Show memory & disk usage\n");
+        fb_write_ansi(win, "  \033[32mclear\033[0m  - Clear screen\n");
+        fb_write_ansi(win, "  \033[32mtext\033[0m X - Sets font X among big, small, default\n");
+        fb_write_ansi(win, "  \033[32mapp\033[0m X  - Keep running command X\n");
+        fb_write_ansi(win, "  \033[32mexit\033[0m   - Shut down\n");
     }
     else if (!strcmp(cmd, "ps")) {
         uint64_t memory_size = memory_total_with_regions();
@@ -156,10 +156,10 @@ void console_execute(Window *win, const char *cmd) {
     }
     else if (!strcmp(cmd, "exit")) 
         poweroff(win);
-    else if (!strncmp(cmd, "widget widget", 6+7)) 
-        fb_write_ansi(win, "\n\033[31mERROR\033[0m Widget would unconditionally copy itself.\n\n");
-    else if (!strncmp(cmd, "widget ", 7)) {
-        const char *arg = cmd + 7;
+    else if (!strncmp(cmd, "app app", 7)) 
+        fb_write_ansi(win, "\n\033[31mERROR\033[0m The app would unconditionally copy itself.\n\n");
+    else if (!strncmp(cmd, "app ", 4)) {
+        const char *arg = cmd + 4;
         // Find first free widget slot
         for (int i = 1; i < 5; i++) {
             if (!apps[i].run) {
