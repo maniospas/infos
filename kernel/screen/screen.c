@@ -18,8 +18,10 @@ uint32_t margin = 0;
 #define invscale scale_denominator/scale_nominator
 
 static size_t cursor_x, cursor_y;
-static uint32_t fg_color = 0xFFFFFF; // white
-static uint32_t bg_color = 0x000000; // black
+#define DEFAULT_FG 0xEEEEEE
+#define DEFAULT_BG 0x1F1F1F
+static uint32_t fg_color = DEFAULT_FG; // white
+static uint32_t bg_color = DEFAULT_BG; // black
 
 #define CHAR_W (8*scale)
 #define CHAR_H (16*scale)
@@ -142,9 +144,9 @@ void fb_clear(void) {
         uint8_t *row = (uint8_t *)fb_addr + y * fb_pitch;
         for (size_t x = 0; x < fb_width; x++) {
             size_t off = x * (fb_bpp / 8);
-            row[off + 0] = 0; // blue
-            row[off + 1] = 0; // green
-            row[off + 2] = 0; // red
+            row[off + 0] = 31; // blue
+            row[off + 1] = 31; // green
+            row[off + 2] = 31; // red
             if (fb_bpp == 32)
                 row[off + 3] = 0;
         }
@@ -152,7 +154,7 @@ void fb_clear(void) {
     cursor_x = cursor_y = margin;
 }
 
-uint8_t * font8x16 = ATIx550_8x16;
+uint8_t * font8x16 = ATIx550_8x16; //ATIx550_8x16;IBM_VGA_8x16;
 
 void fb_put_char(char c) {
     if (c == '\n') {
@@ -198,15 +200,15 @@ void fb_write(const char *s) {
 
 static uint32_t ansi_to_rgb(int code) {
     switch (code) {
-        case 30: return 0x000000;
-        case 31: return 0xAA0000;
-        case 32: return 0x00AA00;
-        case 33: return 0xAAAA00;
-        case 34: return 0x0000AA;
-        case 35: return 0xAA00AA;
-        case 36: return 0x00AAAA;
-        case 37: return 0xFFFFFF;
-        default: return 0xFFFFFF;
+        case 30: return 0x1F1F1F;
+        case 31: return 0xEE7A7A;
+        case 32: return 0x66EE66;
+        case 33: return 0xEEEE88;
+        case 34: return 0x6666EE;
+        case 35: return 0xEE88EE;
+        case 36: return 0x66EEEE;
+        case 37: return 0xEEEEEE;
+        default: return 0xEEEEEE;
     }
 }
 
@@ -254,7 +256,7 @@ void fb_write_ansi(const char *s) {
             int val = 0;
             while (*s >= '0' && *s <= '9') { val = val * 10 + (*s - '0'); s++; }
             if (*s == 'm') {
-                if (val == 0) { fg_color = 0xFFFFFF; bg_color = 0x000000; }
+                if (val == 0) { fg_color = DEFAULT_FG; bg_color = DEFAULT_BG; }
                 else fg_color = ansi_to_rgb(val);
             }
             s++;

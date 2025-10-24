@@ -52,8 +52,10 @@ void console_readline(char *buffer, size_t size) {
 }
 
 void console_execute(const char *cmd) {
-    if (cmd[0] == '\0') return;
-
+    if (cmd[0] == '\0') {
+        fb_write_ansi("Write \033[36mhelp\033[0m and press enter for available commands\n");
+        return;
+    }
     if (!strcmp(cmd, "help")) {
         fb_write("Available commands:\n");
         fb_write("  help   - Show this help\n");

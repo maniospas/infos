@@ -17,7 +17,7 @@ void kernel_main(void) {
 
     margin = 10;
     fb_clear();
-    fb_set_scale(4, 1);
+    fb_set_scale(6, 1);
     fb_write_ansi(
         "\x1b[33m"
         "infOS\n"
@@ -25,7 +25,7 @@ void kernel_main(void) {
     );
     margin = 20;
 
-    fb_set_scale(3,2);
+    fb_set_scale(2,1);
     memory_init(multiboot_info_ptr);
     paging_map_heap();
     memory_buddy_init();
@@ -37,7 +37,7 @@ void kernel_main(void) {
 
     uint64_t memory_size = memory_total_with_regions();
     uint64_t memory_cons = memory_used()+(memory_total_with_regions()-memory_total());
-    fb_write("\nv0.1 (64bit)\n");
+    fb_write("\n");
     if(memory_size<1024*1024) {
         fb_write_dec((memory_cons)/1024);
         fb_write("kB / ");
@@ -58,7 +58,7 @@ void kernel_main(void) {
 
     uint32_t partition_lba_start = find_fat32_partition();
     if (partition_lba_start == 0) 
-        fb_write("Cannot mount FAT32 volume.\n");
+        fb_write_ansi("\033[31mERROR\033[0m Cannot mount FAT32 volume.\n");
     else 
         fat32_init(partition_lba_start);
 
