@@ -1,6 +1,5 @@
 #include "fat32.h"
 #include "disk.h"
-#include "../screen/screen.h"
 #include "../string.h"
 
 #define BUFFER_SIZE   4096
@@ -176,12 +175,12 @@ int fat32_init(uint32_t partition_lba_start) {
 // -----------------------------------------------------------------------------
 // ls with LFN support
 // -----------------------------------------------------------------------------
-void fat32_ls(uint32_t dir_cluster) {
+void fat32_ls(Window* win, uint32_t dir_cluster) {
     uint32_t cluster = dir_cluster;
     uint8_t sector_buf[512];
     int eps = bpb.BytsPerSec / sizeof(struct FAT32_DirEntry);
 
-    fb_write("\n");
+    fb_write(win, "\n");
     while (cluster != 0) {
         uint32_t lba = cluster_to_lba(cluster);
         for (int s = 0; s < bpb.SecPerClus; s++) {
@@ -191,7 +190,7 @@ void fat32_ls(uint32_t dir_cluster) {
             char lfn_buf[256]; lfn_buf[0] = 0;
 
             for (int i = 0; i < eps; i++) {
-                if (e[i].Name[0] == 0x00) { fb_write("\n"); return; }
+                if (e[i].Name[0] == 0x00) { fb_write(win, "\n"); return; }
                 if (e[i].Name[0] == 0xE5) { lfn_buf[0] = 0; continue; }
 
                 if (e[i].Attr == 0x0F) {
@@ -205,24 +204,24 @@ void fat32_ls(uint32_t dir_cluster) {
                 char shortnm[13]; make_short_name_lower(e[i].Name, shortnm);
                 const char *disp = choose_name(lfn_buf, shortnm);
 
-                fb_write("  ");
-                if (e[i].Attr & 0x10) fb_write_ansi("\033[33m");
-                fb_write(disp);
-                if (e[i].Attr & 0x10) fb_write_ansi("\033[0m");
+                fb_write(win, "  ");
+                if (e[i].Attr & 0x10) fb_write_ansi(win, "\033[33m");
+                fb_write(win, disp);
+                if (e[i].Attr & 0x10) fb_write_ansi(win, "\033[0m");
                 else {
-                    fb_write(" ");
-                    fb_write_ansi("\033[36m");
-                    fb_write_dec(e[i].FileSize);
-                    fb_write_ansi(" bytes\033[0m");
+                    fb_write(win, " ");
+                    fb_write_ansi(win, "\033[36m");
+                    fb_write_dec(win, e[i].FileSize);
+                    fb_write_ansi(win, " bytes\033[0m");
                 }
-                fb_put_char('\n');
+                fb_put_char(win, '\n');
 
                 lfn_buf[0] = 0; // reset for next
             }
         }
         cluster = get_next_cluster(cluster);
     }
-    fb_write("\n");
+    fb_write(win, "\n");
 }
 
 // -----------------------------------------------------------------------------
@@ -230,7 +229,7 @@ void fat32_ls(uint32_t dir_cluster) {
 // -----------------------------------------------------------------------------
 static void reset_to_home(void) { str_copy(current_dir_path, "/home", MAX_PATH_LEN); current_dir_cluster = bpb.RootClus; }
 
-void fat32_cd(const char *path) {
+void fat32_cd(Window *win, const char *path) {
     char segment[64]; int seg_i = 0;
 
     // If empty, "/" alone, or explicit "/home" or "/home/..." => treat as root (/home)
@@ -321,9 +320,9 @@ void fat32_cd(const char *path) {
                     }
 
                     if (!found_cluster) {
-                        fb_write_ansi("\n\033[31m  ERROR\033[0m No such directory: ");
-                        fb_write(segment);
-                        fb_write("\n\n");
+                        fb_write_ansi(win, "\n\033[31m  ERROR\033[0m No such directory: ");
+                        fb_write(win, segment);
+                        fb_write(win, "\n\n");
                         return;
                     }
 
@@ -397,7 +396,7 @@ static int is_alnum(char c) {
 }
 
 // -----------------------------------------------------------------------------
-void fat32_cat(const char *filename) {
+void fat32_cat(Window* win, const char *filename) {
     uint32_t cluster = current_dir_cluster;
     uint8_t sector_buf[512];
     int eps = bpb.BytsPerSec / sizeof(struct FAT32_DirEntry);
@@ -414,7 +413,12 @@ void fat32_cat(const char *filename) {
 
             char lfn_buf[256]; lfn_buf[0] = 0;
             for (int i = 0; i < eps; i++) {
-                if (e[i].Name[0] == 0x00) return;
+                if (e[i].Name[0] == 0x00) {
+                    fb_write_ansi(win, "\n\033[31m  ERROR\033[0m No such file: ");
+                    fb_write(win, filename);
+                    fb_write(win, "\n\n");
+                    return;
+                }
                 if (e[i].Name[0] == 0xE5) { lfn_buf[0] = 0; continue; }
 
                 if (e[i].Attr == 0x0F) {
@@ -444,6 +448,7 @@ void fat32_cat(const char *filename) {
 
                     // Display with or without highlighting
                     if (!has_extension) {
+                        fb_write(win, "\n  ");
                         char *ptr = (char *)file_buffer;
                         uint32_t i = 0;
                         while (i < size && i < bytes_read) {
@@ -451,54 +456,76 @@ void fat32_cat(const char *filename) {
 
                             // Gray comments (#)
                             if (c == '#') {
-                                fb_write_ansi("\x1b[90m");
+                                fb_write_ansi(win, "\x1b[90m");
                                 while (i < size && ptr[i] != '\n') {
-                                    fb_put_char(ptr[i++]);
+                                    fb_put_char(win, ptr[i++]);
                                 }
-                                fb_write_ansi("\x1b[0m");
-                                if (i < size) fb_put_char(ptr[i++]);
+                                fb_write_ansi(win, "\x1b[0m");
+                                if (i < size) {
+                                    char c = ptr[i++];
+                                    if(c=='\n')
+                                        fb_write(win, "\n  ");
+                                    else
+                                        fb_put_char(win, '\n');
+                                }
                                 continue;
                             }
 
                             // Green for keywords and braces
                             if (!str_ncmp(&ptr[i], "let", 3) && !is_alnum(ptr[i+3])) {
-                                fb_write_ansi("\x1b[32mlet\x1b[0m");
+                                fb_write_ansi(win, "\x1b[32mlet\x1b[0m");
                                 i += 3;
                                 continue;
                             }
+                            if (!str_ncmp(&ptr[i], "loop", 4) && !is_alnum(ptr[i+4])) {
+                                fb_write_ansi(win, "\x1b[32mloop\x1b[0m");
+                                i += 4;
+                                continue;
+                            }
+                            if (!str_ncmp(&ptr[i], "if", 2) && !is_alnum(ptr[i+2])) {
+                                fb_write_ansi(win, "\x1b[32mloop\x1b[0m");
+                                i += 2;
+                                continue;
+                            }
                             if (!str_ncmp(&ptr[i], "return", 6) && !is_alnum(ptr[i+6])) {
-                                fb_write_ansi("\x1b[32mreturn\x1b[0m");
+                                fb_write_ansi(win, "\x1b[32mreturn\x1b[0m");
                                 i += 6;
                                 continue;
                             }
                             if (c == '{' || c == '}') {
-                                fb_write_ansi("\x1b[32m");
-                                fb_put_char(c);
-                                fb_write_ansi("\x1b[0m");
+                                fb_write_ansi(win, "\x1b[32m");
+                                fb_put_char(win, c);
+                                fb_write_ansi(win, "\x1b[0m");
                                 i++;
                                 continue;
                             }
 
                             // Yellow for parentheses
-                            if (c == '(' || c == ')') {
-                                fb_write_ansi("\x1b[33m");
-                                fb_put_char(c);
-                                fb_write_ansi("\x1b[0m");
+                            if (c == '(' || c == ')' || c==':') {
+                                fb_write_ansi(win, "\x1b[33m");
+                                fb_put_char(win, c);
+                                fb_write_ansi(win, "\x1b[0m");
+                                i++;
+                                continue;
+                            }
+                            if (c == '\n') {
+                                fb_write(win, "\n  ");
                                 i++;
                                 continue;
                             }
 
                             // Default
-                            fb_put_char(c);
+                            fb_put_char(win, c);
                             i++;
                         }
+                        fb_write(win, "\n");
                     } else {
                         // Normal display for files with extensions
                         for (uint32_t k = 0; k < bytes_read && k < size; k++)
-                            fb_put_char(file_buffer[k]);
+                            fb_put_char(win, file_buffer[k]);
                     }
 
-                    fb_write("\n\n");
+                    fb_write(win, "\n\n");
                     return;
                 }
 
@@ -508,9 +535,9 @@ void fat32_cat(const char *filename) {
         cluster = get_next_cluster(cluster);
     }
 
-    fb_write_ansi("  \x1b[32mERROR\x1b[0m File not found: ");
-    fb_write(filename);
-    fb_write("\n");
+    fb_write_ansi(win, "  \x1b[32mERROR\x1b[0m File not found: ");
+    fb_write(win, filename);
+    fb_write(win, "\n");
 }
 
 

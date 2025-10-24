@@ -1,0 +1,10 @@
+# example program
+
+let adder {
+    let sum 0:float
+    loop args:len:bool {
+        let sum (add sum args:next:float)
+    }
+    return sum
+}
+print (adder 1 2 3 4)

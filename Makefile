@@ -9,8 +9,8 @@ ISO := infos.iso
 DISK_IMG := fat32.img
 
 # === Compiler & Linker Flags ===
-CFLAGS64 := -ffreestanding -O2 -Wall -Wextra -fno-pic -m64 -fno-exceptions -fno-asynchronous-unwind-tables
-CFLAGS32 := -ffreestanding -O2 -Wall -Wextra -fno-pic -m32 -fno-exceptions -fno-asynchronous-unwind-tables
+CFLAGS64 := -ffreestanding -O2 -Wall -Wextra -fno-pic -m64 -fno-exceptions -fno-asynchronous-unwind-tables -mno-mmx -mno-sse -mno-sse2
+CFLAGS32 := -ffreestanding -O2 -Wall -Wextra -fno-pic -m32 -fno-exceptions -fno-asynchronous-unwind-tables -mno-mmx -mno-sse -mno-sse2
 LDFLAGS  := -T linker.ld -nostdlib -z max-page-size=0x1000 -z noexecstack -m elf_x86_64
 
 # === Auto-detect all source files ===

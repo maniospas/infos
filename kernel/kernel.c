@@ -7,52 +7,77 @@
 #include "memory/memory.h" 
 #include "memory/paging.h" 
 #include "memory/dynamic.h" 
+#include "application.h"
 
 extern void* multiboot_info_ptr;
 int text_size = 1;
+Application apps[5];
 
 __attribute__((noreturn))
 void kernel_main(void) {
     fb_init(multiboot_info_ptr);
-
-    margin = 10;
-    fb_clear();
-    fb_set_scale(6+text_size, 1+text_size);
-    fb_write_ansi(
-        "\x1b[32m"
-        "LettuOS\n"
-        "\x1b[0m"
-    );
-    margin = 20;
-
-    fb_set_scale(2+text_size,1+text_size);
-    fb_write("A healthy operating system.\n");
     memory_init(multiboot_info_ptr);
     paging_map_heap();
     memory_buddy_init();
-    // volatile int* x = malloc(1024*1024*255);
-    // x[0] = 1;
-    // x[1] = 2;
-    // fb_write_dec(x[0]);
-    // fb_write_dec(x[1]);
 
-    fb_write("\n");
+    Window fullscreen = {0};
+    init_fullscreen(&fullscreen);
+    fullscreen.bg_color = 0;
+    fb_clear(&fullscreen);
+    fb_set_scale(&fullscreen, 6 + text_size, 1 + text_size);
+    fb_write_ansi(&fullscreen, "\x1b[32mLettuOS\n\x1b[0m");
+    fb_set_scale(&fullscreen, 2 + text_size, 1 + text_size);
+    fullscreen.bg_color = fullscreen.DEFAULT_BG;
 
-    // === Initialize other subsystems ===
+    uint32_t toolbar_size = 100;
+
+    static Window windows[5];
+    for (int i = 0; i < 5; i++)
+        init_fullscreen(&windows[i]);
+
+    // Console window
+    windows[0].x = 20;
+    windows[0].y = 140;
+    windows[0].width  = 60 * 16;
+    windows[0].height -= 40 + windows[0].y + toolbar_size;
+    fb_clear(&windows[0]);
+    fb_set_scale(&windows[0], 2, 1);
+    fb_window_border(&windows[0], "Console", 0x000000);
+    fb_set_scale(&windows[0], 3, 2);
+
+    // Initialize apps
+    int right_x = 60 * 16 + 60;
+    int right_y = 140;
+    int spacing = 50;
+    int widget_height = (windows[0].height - (4 * spacing)) / 4;
+    for (int i = 1; i < 5; i++) {
+        windows[i].x = right_x;
+        windows[i].y = right_y + (i - 1) * (widget_height + spacing);
+        windows[i].width  = 50 * 16;
+        windows[i].height = widget_height;
+    }
+    for (int i = 0; i < 5; i++) 
+        app_init(&apps[i], NULL, &windows[i], 4096);
+
+    // Initialize events
     keyboard_init();
     interrupts_init();
 
+    // Initialize disk
     uint32_t partition_lba_start = find_fat32_partition();
-    if (fat32_init(partition_lba_start)) 
-        fb_write_ansi("\033[31mERROR\033[0m Cannot mount FAT32 volume.\n");
+    if (fat32_init(partition_lba_start))
+        fb_write_ansi(&fullscreen, "\033[31mERROR\033[0m Cannot mount FAT32 volume.\n");
 
-    // === Main console loop ===
-    char buffer[1024];
+    // Event loop
+    char buffer[4096];
     for (;;) {
-        console_prompt();
-        console_readline(buffer, sizeof(buffer));
-        console_execute(buffer);
+        for (int i = 0; i < 5; i++)
+            app_run(&apps[i]);  // only does something if run() is set
+        console_prompt(&windows[0]);
+        console_readline(&windows[0], buffer, sizeof(buffer));
+        console_execute(&windows[0], buffer);
     }
+
 }
 
 __attribute__((noreturn))

@@ -6,33 +6,24 @@
 #include "vga.h"
 
 // Multiboot2 framebuffer info
-static uint32_t *fb_addr = NULL;
-static uint32_t fb_width = 0;
-static uint32_t fb_height = 0;
-static uint32_t fb_pitch = 0;
-static uint8_t  fb_bpp = 0;
-static uint32_t scale_nominator = 1;
-static uint32_t scale_denominator = 1;
-uint32_t margin = 0;
-#define scale scale_nominator/scale_denominator
-#define invscale scale_denominator/scale_nominator
-
-static size_t cursor_x, cursor_y;
-#define DEFAULT_FG 0xEEEEEE
-#define DEFAULT_BG 0x1F1F1F
-static uint32_t fg_color = DEFAULT_FG; // white
-static uint32_t bg_color = DEFAULT_BG; // black
-
+uint32_t *fb_addr = NULL;
+uint32_t fb_width = 0;
+uint32_t fb_height = 0;
+uint32_t fb_pitch = 0;
+uint8_t  fb_bpp = 0;
+uint32_t margin = 20;
+#define scale win->scale_nominator/win->scale_denominator
+#define invscale win->scale_denominator/win->scale_nominator
 #define CHAR_W (8*scale)
 #define CHAR_H (16*scale)
 
-void fb_set_scale(uint32_t nom, uint32_t denom) {
-    scale_nominator = nom;
-    scale_denominator = denom;
+void fb_set_scale(Window* win, uint32_t nom, uint32_t denom) {
+    win->scale_nominator = nom;
+    win->scale_denominator = denom;
 }
 
-static void set_color(uint32_t color) {
-    fg_color = color;
+static void set_color(Window* win, uint32_t color) {
+    win->fg_color = color;
 }
 
 static inline uint64_t align_down(uint64_t addr, uint64_t align) {
@@ -96,129 +87,150 @@ void fb_init(void *mb_info_addr) {
             fb_bpp    = fb->framebuffer_bpp;
 
             if (fb_bpp != 32 && fb_bpp != 24) {
-                vga_write("Unsupported framebuffer format\n");
+                //vga_write("Unsupported framebuffer format\n");
                 for (;;) __asm__("hlt");
             }
             
             map_framebuffer((uint64_t)fb_addr, (uint64_t)fb_pitch * fb_height);
-
             return;
         }
     }
 
     // Fallback: framebuffer not found
-    vga_write("Framebuffer not found!\n");
+    //vga_write("Framebuffer not found!\n");
     for (;;) __asm__("hlt");
 }
 
 // === Pixel & char drawing ===
-
 static inline void fb_putpixel(int x, int y, uint64_t color) {
     fb_addr[y*fb_width + x] = color;
-
-
-
-    /*for (int i = 0; i < fb_width * fb_height; i++) {
-        fb_addr[i] = 0xFFFFFFFF; // Fill screen with white
-    }
-    size_t offset = y * fb_pitch + x * (fb_bpp / 8);
-    fb_addr[offset] = color;
-    if (!fb_addr) return;
-    if (x < 0 || y < 0 || x >= (int)fb_width || y >= (int)fb_height) return;
-
-    uint8_t *fb8 = (uint8_t *)fb_addr;
-    size_t offset = y * fb_pitch + x * (fb_bpp / 8);
-
-    // Framebuffer is usually BGRA (little endian)
-    fb8[offset + 0] = (color >> 0)  & 0xFF; // Blue
-    fb8[offset + 1] = (color >> 8)  & 0xFF; // Green
-    fb8[offset + 2] = (color >> 16) & 0xFF; // Red
-    if (fb_bpp == 32)
-        fb8[offset + 3] = 0xFF; // Alpha ignored*/
 }
 
-void fb_clear(void) {
-    cursor_x = margin;
-    cursor_y = margin;
-    for (size_t y = 0; y < fb_height; y++) {
-        uint8_t *row = (uint8_t *)fb_addr + y * fb_pitch;
-        for (size_t x = 0; x < fb_width; x++) {
+void fb_window_border(Window *win, char* title, uint32_t color) {
+    int x0 = win->x;
+    int y0 = win->y;
+    int has_title = title && *title;
+    if (has_title) 
+        y0 -= CHAR_H;
+    int x1 = win->x + win->width - 1;
+    int y1 = win->y + win->height - 1;
+    for (int x = x0; x <= x1+8; x++) {
+        for(int i=1;i<12;i++)
+            fb_putpixel(x, y1+i, 0x444444);
+    }
+    for (int x = x0; x <= x1; x++) {
+        fb_putpixel(x, y0-1, win->DEFAULT_FG);
+        fb_putpixel(x, y1+1, win->DEFAULT_FG);
+        if(has_title)
+            for(int y=0;y<CHAR_H;++y) 
+                fb_putpixel(x, y0+y, win->DEFAULT_FG);
+    }
+    for (int y = y0; y <= y1; y++) {
+        fb_putpixel(x0, y, win->DEFAULT_FG);
+        fb_putpixel(x1, y, win->DEFAULT_FG);
+    }
+    for (int y = y0; y <= y1; y++) {
+        for(int i=1;i<8;i++)
+            fb_putpixel(x1+i, y, 0x444444);
+    }
+    win->cursor_x = win->x + margin;
+    win->cursor_y = win->y - CHAR_H;
+    if (has_title) {
+        win->fg_color = color;
+        win->bg_color = win->DEFAULT_FG;
+        fb_write(win, title);
+        fb_write(win, "\n");
+        win->fg_color = win->DEFAULT_FG;
+        win->bg_color = win->DEFAULT_BG;
+    }
+    win->cursor_y = win->y + margin;
+}
+
+void fb_clear(Window *win) {
+    win->cursor_x = win->x + margin;
+    win->cursor_y = win->y + margin;
+
+    int sx = win->x;
+    int sy = win->y;
+    int w  = win->width;
+    int h  = win->height;
+    uint32_t color = win->bg_color;
+
+    uint8_t r = (color >> 16) & 0xFF;
+    uint8_t g = (color >> 8)  & 0xFF;
+    uint8_t b = (color >> 0)  & 0xFF;
+
+    for (int y = 0; y < h; y++) {
+        uint8_t *row = (uint8_t *)fb_addr + (sy + y) * fb_pitch + sx * (fb_bpp / 8);
+        for (int x = 0; x < w; x++) {
             size_t off = x * (fb_bpp / 8);
-            row[off + 0] = 31; // blue
-            row[off + 1] = 31; // green
-            row[off + 2] = 31; // red
+            row[off + 0] = b;
+            row[off + 1] = g;
+            row[off + 2] = r;
             if (fb_bpp == 32)
-                row[off + 3] = 0;
+                row[off + 3] = 0; // alpha ignored
         }
     }
-    cursor_x = cursor_y = margin;
 }
+
 
 uint8_t * font8x16 = ATIx550_8x16; //ATIx550_8x16;IBM_VGA_8x16;
 
-void fb_put_char(char c) {
+void fb_put_char(Window* win, char c) {
     if (!fb_addr) return;
 
     if (c == '\n') {
-        cursor_x = margin;
-        cursor_y += CHAR_H;
+        win->cursor_x = win->x+margin;
+        win->cursor_y += CHAR_H;
     } else {
         const uint8_t *glyph = &font8x16[16 * (uint8_t)c];
-        for (uint32_t y = 0; y < CHAR_H; y++) {
-            for (uint32_t x = 0; x < CHAR_W; x++) {
+        for (uint32_t y = 0; y < CHAR_H && y<win->y+win->height; y++) {
+            for (uint32_t x = 0; x < CHAR_W && x<win->width+win->x; x++) {
                 if (glyph[y * invscale] & (1 << (7 - x * invscale)))
-                    fb_putpixel(cursor_x + x, cursor_y + y, fg_color);
+                    fb_putpixel(win->cursor_x + x, win->cursor_y + y, win->fg_color);
                 else
-                    fb_putpixel(cursor_x + x, cursor_y + y, bg_color);
+                    fb_putpixel(win->cursor_x + x, win->cursor_y + y, win->bg_color);
             }
         }
-        cursor_x += CHAR_W;
-        if (cursor_x + CHAR_W >= fb_width - margin) {
-            cursor_x = margin;
-            cursor_y += CHAR_H;
+        win->cursor_x += CHAR_W;
+        if (win->cursor_x + CHAR_W >= fb_width - margin) {
+            win->cursor_x = win->x+margin;
+            win->cursor_y += CHAR_H;
         }
     }
 
     // === handle scrolling ===
-    if (cursor_y + CHAR_H >= fb_height - margin && cursor_y>=CHAR_H) {
-        // Number of pixels in one text line
-        uint32_t line_bytes = fb_pitch * CHAR_H;
-        uint32_t visible_bytes = fb_pitch * (fb_height - CHAR_H);
-
-        // Move framebuffer content up by one line, pixel-by-pixel
-        uint8_t *dst = (uint8_t *)fb_addr;
-        uint8_t *src = (uint8_t *)fb_addr + line_bytes;
-
-        for (uint32_t y = 0; y < fb_height - CHAR_H; y++) 
-            for (uint32_t x = 0; x < fb_width; x++) 
+    if (win->cursor_y + CHAR_H >= win->y+win->height - margin && win->cursor_y>=CHAR_H) {
+        for (uint32_t y = win->y; y < win->y+win->height - CHAR_H; y++) 
+            for (uint32_t x = win->x; x < win->x+win->width; x++) 
                 fb_addr[y*fb_width + x] = fb_addr[(y+CHAR_H)*fb_width + x];
         for (uint32_t y = fb_height - CHAR_H; y < fb_height; y++) {
-            for (uint32_t x = 0; x < fb_width; x++) 
-                fb_addr[y*fb_width + x] = bg_color;
+            for (uint32_t x = win->x; x < win->x+win->width; x++) 
+                fb_addr[y*fb_width + x] = win->bg_color;
         }
 
-        cursor_y -= CHAR_H;
+        win->cursor_y -= CHAR_H;
     }
 }
 
 
-void fb_removechar(void) {
-    if (cursor_x == margin) {
-        if (cursor_y == margin) return;
-        cursor_y -= CHAR_H;
-        cursor_x = fb_width - (fb_width % CHAR_W);
-        if (cursor_x >= fb_width-margin) cursor_x = fb_width - CHAR_W;
+void fb_removechar(Window* win) {
+    if (win->cursor_x == win->x+margin) {
+        if (win->cursor_y == win->x+margin) return;
+        win->cursor_y -= CHAR_H;
+        win->cursor_x = win->width - (win->width % CHAR_W);
+        if (win->cursor_x >= fb_width-margin) win->cursor_x = fb_width - CHAR_W;
     } 
     else 
-        cursor_x -= CHAR_W;
+        win->cursor_x -= CHAR_W;
     
-    for (uint32_t y = 0; y < CHAR_H; y++)
-        for (uint32_t x = 0; x < CHAR_W; x++)
-            fb_putpixel(cursor_x + x, cursor_y + y, bg_color);
+    for (uint32_t y = 0; y < CHAR_H && win->y+y<win->height; y++)
+        for (uint32_t x = 0; x < CHAR_W && win->x+x<win->width; x++)
+            fb_putpixel(win->cursor_x + x, win->cursor_y + y, win->bg_color);
 }
 
-void fb_write(const char *s) {
-    while (*s) fb_put_char(*s++);
+void fb_write(Window* win, const char *s) {
+    while (*s) fb_put_char(win, *s++);
 }
 
 static uint32_t ansi_to_rgb(int code) {
@@ -237,12 +249,12 @@ static uint32_t ansi_to_rgb(int code) {
 }
 
 // Write unsigned integer in decimal
-void fb_write_dec(uint64_t num) {
+void fb_write_dec(Window* win, uint64_t num) {
     char buf[32];
     int i = 0;
 
     if (num == 0) {
-        fb_put_char('0');
+        fb_put_char(win, '0');
         return;
     }
 
@@ -252,12 +264,12 @@ void fb_write_dec(uint64_t num) {
     }
 
     while (i--) {
-        fb_put_char(buf[i]);
+        fb_put_char(win, buf[i]);
     }
 }
 
 // Write 64-bit value in hexadecimal (with no 0x prefix)
-void fb_write_hex(uint64_t val) {
+void fb_write_hex(Window* win, uint64_t val) {
     const char *hex = "0123456789ABCDEF";
     int shift = 60;
     int leading = 1;
@@ -267,25 +279,25 @@ void fb_write_hex(uint64_t val) {
         if (nibble == 0 && leading && shift)
             continue;
         leading = 0;
-        fb_put_char(hex[nibble]);
+        fb_put_char(win, hex[nibble]);
     }
     if (leading)
-        fb_put_char('0');
+        fb_put_char(win, '0');
 }
 
-void fb_write_ansi(const char *s) {
+void fb_write_ansi(Window* win, const char *s) {
     while (*s) {
         if (*s == '\x1b' && *(s + 1) == '[') {
             s += 2;
             int val = 0;
             while (*s >= '0' && *s <= '9') { val = val * 10 + (*s - '0'); s++; }
             if (*s == 'm') {
-                if (val == 0) { fg_color = DEFAULT_FG; bg_color = DEFAULT_BG; }
-                else fg_color = ansi_to_rgb(val);
+                if (val == 0) { win->fg_color = win->DEFAULT_FG; win->bg_color = win->DEFAULT_BG; }
+                else win->fg_color = ansi_to_rgb(val);
             }
             s++;
         } 
         else 
-            fb_put_char(*s++);
+            fb_put_char(win, *s++);
     }
 }

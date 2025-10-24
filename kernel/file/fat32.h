@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include "../screen/screen.h"
 
 struct FAT32_BPB {
     uint8_t  jmpBoot[3];
@@ -57,9 +58,9 @@ struct FAT32_Usage {
 
 int fat32_init(uint32_t partition_lba_start);
 uint32_t find_fat32_partition();
-void fat32_ls(uint32_t dir_cluster);
-void fat32_cd(const char *path);
-void fat32_cat(const char *filename);
+void fat32_ls(Window* win, uint32_t dir_cluster);
+void fat32_cd(Window* win, const char *path);
+void fat32_cat(Window* win, const char *filename);
 struct FAT32_Usage fat32_get_usage(void);
 
 // Accessors

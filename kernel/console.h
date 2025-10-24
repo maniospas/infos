@@ -1,6 +1,7 @@
 #pragma once
 #include <stddef.h>
+#include "screen/screen.h"
 
-void console_execute(const char *cmd);
-void console_prompt(void);
-void console_readline(char *buffer, size_t size);
+void console_execute(Window *win, const char *cmd);
+void console_prompt(Window *win);
+void console_readline(Window *win, char *buffer, size_t size);
