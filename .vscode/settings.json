@@ -17,6 +17,7 @@
         "cstdint": "c",
         "memory.h": "c",
         "dynamic.h": "c",
-        "paging.h": "c"
+        "paging.h": "c",
+        "disk.h": "c"
     }
 }

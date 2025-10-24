@@ -157,27 +157,59 @@ void fb_clear(void) {
 uint8_t * font8x16 = ATIx550_8x16; //ATIx550_8x16;IBM_VGA_8x16;
 
 void fb_put_char(char c) {
+    if (!fb_addr) return;
+
     if (c == '\n') {
         cursor_x = margin;
         cursor_y += CHAR_H;
-        if (cursor_y + CHAR_H >= fb_height-margin) cursor_y = 0;
-        return;
-    }
-    const uint8_t *glyph = &font8x16[16 * (uint8_t)c];
-    for (uint32_t y = 0; y < CHAR_H; y++) {
-        for (uint32_t x = 0; x < CHAR_W; x++) {
-            if (glyph[y*invscale] & (1 << (7 - x*invscale)))
-                fb_putpixel(cursor_x+x, cursor_y+y, fg_color);
-            else
-                fb_putpixel(cursor_x+x, cursor_y+y, bg_color);
+    } else {
+        const uint8_t *glyph = &font8x16[16 * (uint8_t)c];
+        for (uint32_t y = 0; y < CHAR_H; y++) {
+            for (uint32_t x = 0; x < CHAR_W; x++) {
+                if (glyph[y * invscale] & (1 << (7 - x * invscale)))
+                    fb_putpixel(cursor_x + x, cursor_y + y, fg_color);
+                else
+                    fb_putpixel(cursor_x + x, cursor_y + y, bg_color);
+            }
+        }
+        cursor_x += CHAR_W;
+        if (cursor_x + CHAR_W >= fb_width - margin) {
+            cursor_x = margin;
+            cursor_y += CHAR_H;
         }
     }
-    cursor_x += CHAR_W;
-    if (cursor_x + CHAR_W >= fb_width-margin) {
-        cursor_x = margin;
-        cursor_y += CHAR_H;
+
+    // === handle scrolling ===
+    if (cursor_y + CHAR_H >= fb_height - margin) {
+        // Number of pixels in one text line
+        uint32_t line_bytes = fb_pitch * CHAR_H;
+        uint32_t visible_bytes = fb_pitch * (fb_height - CHAR_H);
+
+        // Move framebuffer content up by one line, pixel-by-pixel
+        uint8_t *dst = (uint8_t *)fb_addr;
+        uint8_t *src = (uint8_t *)fb_addr + line_bytes;
+
+        // Move all rows up
+        for (uint32_t y = 0; y < fb_height - CHAR_H; y++) {
+            uint32_t *dst_row = (uint32_t *)(dst + y * fb_pitch);
+            uint32_t *src_row = (uint32_t *)(src + y * fb_pitch);
+            for (uint32_t x = 0; x < fb_width; x++) {
+                dst_row[x] = src_row[x];
+            }
+        }
+
+        // Clear bottom line
+        for (uint32_t y = fb_height - CHAR_H; y < fb_height; y++) {
+            uint32_t *row = (uint32_t *)((uint8_t *)fb_addr + y * fb_pitch);
+            for (uint32_t x = 0; x < fb_width; x++) {
+                row[x] = bg_color;
+            }
+        }
+
+        cursor_y -= CHAR_H;
     }
 }
+
 
 void fb_removechar(void) {
     if (cursor_x == margin) {

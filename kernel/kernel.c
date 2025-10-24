@@ -41,10 +41,8 @@ void kernel_main(void) {
     interrupts_init();
 
     uint32_t partition_lba_start = find_fat32_partition();
-    if (partition_lba_start == 0) 
+    if (fat32_init(partition_lba_start)) 
         fb_write_ansi("\033[31mERROR\033[0m Cannot mount FAT32 volume.\n");
-    else 
-        fat32_init(partition_lba_start);
 
     // === Main console loop ===
     char buffer[1024];

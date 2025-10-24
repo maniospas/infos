@@ -41,6 +41,10 @@ cd ~/gcc-build
 // check
 x86_64-elf-gcc --version
 
+//
+qemu-img create fat32.img 64M
+mkfs.vfat -F 32 fat32.img
+
 // install qemu
 sudo apt install qemu-system-x86
 make run

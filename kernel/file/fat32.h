@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
 
-struct __attribute__((packed)) FAT32_BPB {
+struct FAT32_BPB {
     uint8_t  jmpBoot[3];
     uint8_t  OEMName[8];
     uint16_t BytsPerSec;
@@ -29,9 +29,9 @@ struct __attribute__((packed)) FAT32_BPB {
     uint32_t VolID;
     uint8_t  VolLab[11];
     uint8_t  FilSysType[8];
-};
+} __attribute__((packed));
 
-struct __attribute__((packed)) FAT32_DirEntry {
+struct FAT32_DirEntry {
     uint8_t  Name[11];
     uint8_t  Attr;
     uint8_t  NTRes;
@@ -44,10 +44,25 @@ struct __attribute__((packed)) FAT32_DirEntry {
     uint16_t WrtDate;
     uint16_t FstClusLO;
     uint32_t FileSize;
+} __attribute__((packed));
+
+struct FAT32_Usage {
+    uint32_t used_mb;
+    uint32_t total_mb;
 };
 
-// API
+// -----------------------------------------------------------------------------
+// Public API
+// -----------------------------------------------------------------------------
+
 int fat32_init(uint32_t partition_lba_start);
-void fat32_ls_root();
-void fat32_cat(const char *filename);
 uint32_t find_fat32_partition();
+void fat32_ls(uint32_t dir_cluster);
+void fat32_cd(const char *path);
+void fat32_cat(const char *filename);
+struct FAT32_Usage fat32_get_usage(void);
+
+// Accessors
+uint32_t fat32_get_current_dir(void);
+void fat32_set_current_dir(uint32_t cluster);
+const char *fat32_get_current_path(void);
