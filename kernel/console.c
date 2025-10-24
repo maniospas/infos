@@ -4,6 +4,8 @@
 #include "file/fat32.h"
 #include "string.h"
 #include "io.h"
+#include "memory/memory.h" 
+#include "memory/dynamic.h" 
 
 // === Local helper to power off system ===
 static void poweroff(void) {
@@ -52,17 +54,35 @@ void console_readline(char *buffer, size_t size) {
 }
 
 void console_execute(const char *cmd) {
-    if (cmd[0] == '\0') {
-        fb_write_ansi("Write \033[36mhelp\033[0m and press enter for available commands\n");
-        return;
-    }
     if (!strcmp(cmd, "help")) {
-        fb_write("Available commands:\n");
-        fb_write("  help   - Show this help\n");
-        fb_write("  ls     - List files in root\n");
-        fb_write("  cat X  - Print file contents\n");
-        fb_write("  clear  - Clear screen\n");
-        fb_write("  exit   - Shut down\n");
+        fb_write("\n----------- Available commands ----------\n");
+        fb_write_ansi("  \033[36mhelp\033[0m   - Show this help\n");
+        fb_write_ansi("  \033[36mls\033[0m     - List files in root\n");
+        fb_write_ansi("  \033[36mps\033[0m     - List processes and resources\n");
+        fb_write_ansi("  \033[36mcat\033[0m X  - Print file contents\n");
+        fb_write_ansi("  \033[36mclear\033[0m  - Clear screen\n");
+        fb_write_ansi("  \033[36mexit\033[0m   - Shut down\n");
+        fb_write("-----------------------------------------\n\n");
+    }
+    else if (!strcmp(cmd, "ps")) {
+        uint64_t memory_size = memory_total_with_regions();
+        uint64_t memory_cons = memory_used()+(memory_total_with_regions()-memory_total());
+        fb_write("\n-----------------------------------------\n");
+        fb_write("Memory: ");
+        if(memory_size<1024*1024) {
+            fb_write_dec((memory_cons)/1024);
+            fb_write("kB / ");
+            fb_write_dec((memory_size)/1024);
+            fb_write("kB");
+        }
+        else {
+            fb_write_dec((memory_cons)/(1024*1024));
+            fb_write("MB / ");
+            fb_write_dec((memory_size)/(1024*1024));
+            fb_write("MB");
+        }
+        fb_write("\n");
+        fb_write("-----------------------------------------\n\n");
     }
     else if (!strcmp(cmd, "ls")) {
         fat32_ls_root();
@@ -71,14 +91,22 @@ void console_execute(const char *cmd) {
         fat32_cat(cmd + 4);
     }
     else if (!strcmp(cmd, "clear")) {
+        margin = 10;
         fb_clear();
+        fb_set_scale(6, 1);
+        fb_write_ansi(
+            "\x1b[33m"
+            "infOS\n"
+            "\x1b[0m"
+        );
+        margin = 20;
+        fb_set_scale(2, 1);
+        fb_write("\n");
     }
     else if (!strcmp(cmd, "exit")) {
         poweroff();
     }
     else {
-        fb_write("Unknown command: ");
-        fb_write(cmd);
-        fb_write("\n");
+        fb_write_ansi("\033[31mERROR\033[0m Unknown command. Write \033[36mhelp\033[0m to see available ones.\n");
     }
 }

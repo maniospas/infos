@@ -9,7 +9,6 @@
 #include "memory/dynamic.h" 
 
 extern void* multiboot_info_ptr;
-extern uint32_t margin;
 
 __attribute__((noreturn))
 void kernel_main(void) {
@@ -35,21 +34,6 @@ void kernel_main(void) {
     // fb_write_dec(x[0]);
     // fb_write_dec(x[1]);
 
-    uint64_t memory_size = memory_total_with_regions();
-    uint64_t memory_cons = memory_used()+(memory_total_with_regions()-memory_total());
-    fb_write("\n");
-    if(memory_size<1024*1024) {
-        fb_write_dec((memory_cons)/1024);
-        fb_write("kB / ");
-        fb_write_dec((memory_size)/1024);
-        fb_write("kB");
-    }
-    else {
-        fb_write_dec((memory_cons)/(1024*1024));
-        fb_write("MB / ");
-        fb_write_dec((memory_size)/(1024*1024));
-        fb_write("MB");
-    }
     fb_write("\n");
 
     // === Initialize other subsystems ===
@@ -63,7 +47,6 @@ void kernel_main(void) {
         fat32_init(partition_lba_start);
 
     // === Main console loop ===
-    fb_write("\n");
     char buffer[1024];
     for (;;) {
         console_prompt();

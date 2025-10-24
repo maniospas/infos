@@ -11,3 +11,4 @@ void fb_removechar();
 void fb_set_scale(uint32_t nom, uint32_t denom);
 void fb_write_dec(uint64_t num);
 void fb_write_hex(uint64_t num);
+extern uint32_t margin;
