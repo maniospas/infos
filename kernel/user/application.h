@@ -29,3 +29,6 @@ typedef struct Application {
 
 void app_init(Application* app, void (*func)(Application*, int appid), Window* win, size_t data_size);
 void app_run(Application* app, int appid);
+extern Application *apps;
+extern uint32_t MAX_APPLICATIONS;
+extern uint32_t text_size;

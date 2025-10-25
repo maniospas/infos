@@ -122,12 +122,13 @@ void fb_window_border(Window *win, char* title, uint32_t color, int appid) {
     if (has_title) {
         win->fg_color = color;
         win->bg_color = win->DEFAULT_FG;
-        if(appid>=0) {
-            fb_write(win, "#");
-            fb_write_dec(win, appid);
-            fb_write(win, " ");
-        }
         fb_write(win, title);
+        win->fg_color = 0x006600;
+        win->cursor_x = win->x+win->width-50;
+        if(appid>=0) {
+            fb_write(win, " #");
+            fb_write_dec(win, appid);
+        }
         fb_write(win, "\n");
         win->fg_color = win->DEFAULT_FG;
         win->bg_color = win->DEFAULT_BG;

@@ -13,3 +13,6 @@ void app_run(Application* app, int appid) {
     if (app->run)
         app->run(app, appid);
 }
+
+uint32_t MAX_APPLICATIONS = 0;
+Application *apps = NULL;
