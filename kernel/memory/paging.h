@@ -1,6 +1,4 @@
-#ifndef PAGING_H
-#define PAGING_H
-
+#pragma once
 #include <stddef.h>
 #include <stdint.h>
 
@@ -37,5 +35,3 @@ void paging_map_heap(void);
 #ifdef __cplusplus
 }
 #endif
-
-#endif // PAGING_H

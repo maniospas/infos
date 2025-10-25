@@ -8,6 +8,8 @@ typedef struct Application {
     void* data;                        // arbitrary data (4KB buffer)
     uint32_t data_size;                // size of data buffer
     Window* window;                    // pointer to associated window
+    char** vars;
+    size_t MAX_VARS;
 } Application;
 
 void app_init(Application* app, void (*func)(Application*), Window* win, size_t data_size);

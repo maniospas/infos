@@ -31,7 +31,6 @@ int ata_read_sector(uint32_t lba, void *buffer) {
     outb(ATA_PRIMARY_IO + ATA_REG_LBA1, (uint8_t)(lba >> 8));
     outb(ATA_PRIMARY_IO + ATA_REG_LBA2, (uint8_t)(lba >> 16));
     outb(ATA_PRIMARY_IO + ATA_REG_COMMAND, ATA_CMD_READ_PIO);
-
     uint8_t status;
     do {
         status = inb(ATA_PRIMARY_IO + ATA_REG_COMMAND);
@@ -39,7 +38,6 @@ int ata_read_sector(uint32_t lba, void *buffer) {
 
     if (status & 0x01)
         return -1; // Error
-
     insw(ATA_PRIMARY_IO + ATA_REG_DATA, buffer, 256); // 512 bytes
     return 0;
 }

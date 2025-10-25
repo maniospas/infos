@@ -18,6 +18,9 @@
         "memory.h": "c",
         "dynamic.h": "c",
         "paging.h": "c",
-        "disk.h": "c"
+        "disk.h": "c",
+        "cstdlib": "c",
+        "region.h": "c",
+        "application.h": "c"
     }
 }

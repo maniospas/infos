@@ -7,7 +7,6 @@
 
 static uint8_t file_buffer[BUFFER_SIZE];
 static char current_dir_path[MAX_PATH_LEN] = "/home";
-
 const char *fat32_get_current_path(void) { return current_dir_path; }
 
 // --- FAT globals ---
@@ -16,40 +15,6 @@ static uint32_t fat_begin_lba;
 static uint32_t first_data_sector;
 static uint32_t cluster_size;
 static uint32_t current_dir_cluster = 0;
-
-// -----------------------------------------------------------------------------
-// Helpers (no libc)
-// -----------------------------------------------------------------------------
-static inline char to_lower(char c) { return (c >= 'A' && c <= 'Z') ? (c + 32) : c; }
-
-static int str_length_bounded(const char *s, int maxn) {
-    int n = 0; while (n < maxn && s[n]) n++; return n;
-}
-static int str_length(const char *s) { return str_length_bounded(s, 32767); }
-
-static void str_copy(char *dst, const char *src, int maxlen) {
-    int i = 0; while (src[i] && i < maxlen - 1) { dst[i] = src[i]; i++; } dst[i] = 0;
-}
-static void str_append_char(char *dst, int *len, char c, int maxlen) {
-    if (*len < maxlen - 1) { dst[*len] = c; (*len)++; dst[*len] = 0; }
-}
-static int str_starts_with(const char *s, const char *prefix) {
-    int i = 0; while (prefix[i]) { if (s[i] != prefix[i]) return 0; i++; } return 1;
-}
-
-// Case-insensitive string compare (ASCII only)
-static int strcasecmp(const char *s1, const char *s2) {
-    while (*s1 && *s2) {
-        char c1 = *s1;
-        char c2 = *s2;
-        if (c1 >= 'A' && c1 <= 'Z') c1 += 32;
-        if (c2 >= 'A' && c2 <= 'Z') c2 += 32;
-        if (c1 != c2)
-            return (unsigned char)c1 - (unsigned char)c2;
-        s1++; s2++;
-    }
-    return (unsigned char)*s1 - (unsigned char)*s2;
-}
 
 // -----------------------------------------------------------------------------
 // On-disk structures for LFN
@@ -71,6 +36,7 @@ struct FAT32_LFN_Entry {
 static uint32_t cluster_to_lba(uint32_t cluster) {
     return first_data_sector + ((cluster - 2) * bpb.SecPerClus);
 }
+
 static uint32_t get_next_cluster(uint32_t cluster) {
     uint32_t fat_offset = cluster * 4;
     uint32_t fat_sector = fat_begin_lba + (fat_offset / bpb.BytsPerSec);
@@ -92,7 +58,6 @@ static void make_short_name_lower(const uint8_t Name[11], char out[13]) {
     for (i = 0; i < 3; i++) ext[i] = Name[8+i];
     ext[3] = 0;
     for (i = 2; i >= 0 && ext[i] == ' '; i--) ext[i] = 0;
-
     out[0] = 0;
     for (i = 0; base[i]; i++) str_append_char(out, &p, to_lower(base[i]), 13);
     if (ext[0]) {
@@ -179,31 +144,25 @@ void fat32_ls(Window* win, uint32_t dir_cluster) {
     uint32_t cluster = dir_cluster;
     uint8_t sector_buf[512];
     int eps = bpb.BytsPerSec / sizeof(struct FAT32_DirEntry);
-
     fb_write(win, "\n");
     while (cluster != 0) {
         uint32_t lba = cluster_to_lba(cluster);
         for (int s = 0; s < bpb.SecPerClus; s++) {
             ata_read_sector(lba + s, sector_buf);
             struct FAT32_DirEntry *e = (struct FAT32_DirEntry *)sector_buf;
-
             char lfn_buf[256]; lfn_buf[0] = 0;
-
             for (int i = 0; i < eps; i++) {
                 if (e[i].Name[0] == 0x00) { return; }
                 if (e[i].Name[0] == 0xE5) { lfn_buf[0] = 0; continue; }
-
                 if (e[i].Attr == 0x0F) {
                     // LFN entry piece
                     const struct FAT32_LFN_Entry *lfn = (const struct FAT32_LFN_Entry *)&e[i];
                     lfn_prepend_piece(lfn_buf, lfn, sizeof(lfn_buf));
                     continue;
                 }
-
                 // Normal entry
                 char shortnm[13]; make_short_name_lower(e[i].Name, shortnm);
                 const char *disp = choose_name(lfn_buf, shortnm);
-
                 fb_write(win, "  ");
                 if (e[i].Attr & 0x10) fb_write_ansi(win, "\033[33m");
                 fb_write(win, disp);
@@ -215,7 +174,6 @@ void fat32_ls(Window* win, uint32_t dir_cluster) {
                     fb_write_ansi(win, " bytes\033[0m");
                 }
                 fb_put_char(win, '\n');
-
                 lfn_buf[0] = 0; // reset for next
             }
         }
@@ -344,64 +302,13 @@ void fat32_cd(Window *win, const char *path) {
 }
 
 // -----------------------------------------------------------------------------
-// cat with LFN support
-// -----------------------------------------------------------------------------
-// -----------------------------------------------------------------------------
-// cat with LFN support + highlighting for extensionless files
-// -----------------------------------------------------------------------------
-// -----------------------------------------------------------------------------
-// cat with LFN support + highlighting for extensionless files (no stdlib)
-// -----------------------------------------------------------------------------
-
-// --- Minimal helper functions ---
-static int str_len(const char *s) {
-    int n = 0;
-    while (s && s[n]) n++;
-    return n;
-}
-
-static const char* str_find_last_dot(const char *s) {
-    const char *last = 0;
-    while (s && *s) {
-        if (*s == '.') last = s;
-        s++;
-    }
-    return last;
-}
-
-static int str_casecmp(const char *a, const char *b) {
-    while (*a && *b) {
-        char ca = *a, cb = *b;
-        if (ca >= 'A' && ca <= 'Z') ca += 'a' - 'A';
-        if (cb >= 'A' && cb <= 'Z') cb += 'a' - 'A';
-        if (ca != cb) return ca - cb;
-        a++; b++;
-    }
-    return *a - *b;
-}
-
-static int str_ncmp(const char *a, const char *b, int n) {
-    for (int i = 0; i < n; i++) {
-        if (a[i] != b[i] || !a[i] || !b[i])
-            return a[i] - b[i];
-    }
-    return 0;
-}
-
-static int is_alnum(char c) {
-    return ((c >= 'A' && c <= 'Z') ||
-            (c >= 'a' && c <= 'z') ||
-            (c >= '0' && c <= '9'));
-}
-
-// -----------------------------------------------------------------------------
 void fat32_cat(Window* win, const char *filename) {
     uint32_t cluster = current_dir_cluster;
     uint8_t sector_buf[512];
     int eps = bpb.BytsPerSec / sizeof(struct FAT32_DirEntry);
 
     // Detect if the file has an extension
-    const char *dot = str_find_last_dot(filename);
+    const char *dot = strfindlastdot(filename);
     int has_extension = (dot && *(dot + 1) != 0);
 
     while (cluster != 0) {
@@ -419,22 +326,18 @@ void fat32_cat(Window* win, const char *filename) {
                     return;
                 }
                 if (e[i].Name[0] == 0xE5) { lfn_buf[0] = 0; continue; }
-
                 if (e[i].Attr == 0x0F) {
                     const struct FAT32_LFN_Entry *lfn = (const struct FAT32_LFN_Entry *)&e[i];
                     lfn_prepend_piece(lfn_buf, lfn, sizeof(lfn_buf));
                     continue;
                 }
-
                 // Regular
                 char shortnm[13]; make_short_name_lower(e[i].Name, shortnm);
                 const char *cand = choose_name(lfn_buf, shortnm);
-
-                if (!str_casecmp(cand, filename) && !(e[i].Attr & 0x10)) {
+                if (!strcasecmp(cand, filename) && !(e[i].Attr & 0x10)) {
                     uint32_t fclus = (e[i].FstClusHI << 16) | e[i].FstClusLO;
                     uint32_t size  = e[i].FileSize;
                     uint32_t bytes_read = 0;
-
                     while (fclus && bytes_read < size && bytes_read < BUFFER_SIZE) {
                         uint32_t sec_lba = cluster_to_lba(fclus);
                         for (int s2 = 0; s2 < bpb.SecPerClus; s2++) {
@@ -471,22 +374,22 @@ void fat32_cat(Window* win, const char *filename) {
                             }
 
                             // Green for keywords and braces
-                            if (!str_ncmp(&ptr[i], "let", 3) && !is_alnum(ptr[i+3])) {
+                            if (!strncmp(&ptr[i], "let", 3) && !is_alnum(ptr[i+3])) {
                                 fb_write_ansi(win, "\x1b[32mlet\x1b[0m");
                                 i += 3;
                                 continue;
                             }
-                            if (!str_ncmp(&ptr[i], "loop", 4) && !is_alnum(ptr[i+4])) {
+                            if (!strncmp(&ptr[i], "loop", 4) && !is_alnum(ptr[i+4])) {
                                 fb_write_ansi(win, "\x1b[32mloop\x1b[0m");
                                 i += 4;
                                 continue;
                             }
-                            if (!str_ncmp(&ptr[i], "if", 2) && !is_alnum(ptr[i+2])) {
+                            if (!strncmp(&ptr[i], "if", 2) && !is_alnum(ptr[i+2])) {
                                 fb_write_ansi(win, "\x1b[32mloop\x1b[0m");
                                 i += 2;
                                 continue;
                             }
-                            if (!str_ncmp(&ptr[i], "return", 6) && !is_alnum(ptr[i+6])) {
+                            if (!strncmp(&ptr[i], "return", 6) && !is_alnum(ptr[i+6])) {
                                 fb_write_ansi(win, "\x1b[32mreturn\x1b[0m");
                                 i += 6;
                                 continue;
@@ -533,7 +436,6 @@ void fat32_cat(Window* win, const char *filename) {
         }
         cluster = get_next_cluster(cluster);
     }
-
     fb_write_ansi(win, "  \x1b[32mERROR\x1b[0m File not found: ");
     fb_write(win, filename);
     fb_write(win, "\n");
@@ -547,22 +449,18 @@ void fat32_cat(Window* win, const char *filename) {
 struct FAT32_Usage fat32_get_usage(void) {
     uint8_t sector[512];
     uint32_t free_clusters = 0;
-
     for (uint32_t s = 0; s < bpb.FATSz32; s++) {
         if (ata_read_sector(fat_begin_lba + s, sector) != 0) break;
         uint32_t *entry = (uint32_t *)sector;
         for (uint32_t i = 0; i < bpb.BytsPerSec / 4; i++)
             if ((*entry++ & 0x0FFFFFFF) == 0) free_clusters++;
     }
-
     uint32_t data_sectors   = bpb.TotSec32 - (bpb.RsvdSecCnt + (bpb.NumFATs * bpb.FATSz32));
     uint32_t total_clusters = bpb.SecPerClus ? data_sectors / bpb.SecPerClus : 0;
     uint32_t cluster_bytes  = bpb.SecPerClus * bpb.BytsPerSec;
-
     uint64_t total_bytes = (uint64_t)total_clusters * cluster_bytes;
     uint64_t free_bytes  = (uint64_t)free_clusters * cluster_bytes;
     uint64_t used_bytes  = (total_bytes > free_bytes) ? total_bytes - free_bytes : 0;
-
     struct FAT32_Usage u;
     u.total_mb = (uint32_t)(total_bytes / (1024ULL * 1024ULL));
     u.used_mb  = (uint32_t)(used_bytes  / (1024ULL * 1024ULL));

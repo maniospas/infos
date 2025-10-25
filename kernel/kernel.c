@@ -5,12 +5,10 @@
 #include "console.h"
 #include "interrupts.h"
 #include "memory/memory.h" 
-#include "memory/paging.h" 
-#include "memory/dynamic.h" 
 #include "application.h"
 
 extern void* multiboot_info_ptr;
-int text_size = 1;
+uint32_t text_size = 1;
 Application apps[5];
 
 __attribute__((noreturn))
@@ -32,7 +30,7 @@ void kernel_main(void) {
     uint32_t toolbar_size = 100;
 
     static Window windows[5];
-    for (int i = 0; i < 5; i++)
+    for (uint32_t i = 0; i < 5; i++)
         init_fullscreen(&windows[i]);
 
     // Console window
@@ -45,19 +43,29 @@ void kernel_main(void) {
     fb_window_border(&windows[0], "Console", 0x000000);
     fb_set_scale(&windows[0], 3, 2);
 
+    // Initialize variables
+    char buffer[4096];
+    size_t MAX_VARS = 128; 
+    char* vars[MAX_VARS];
+    for (uint32_t i = 0; i < MAX_VARS; i++)
+        vars[i] = NULL; 
+
     // Initialize apps
-    int right_x = 60 * 16 + 60;
-    int right_y = 140;
-    int spacing = 50;
-    int widget_height = (windows[0].height - (4 * spacing)) / 4;
-    for (int i = 1; i < 5; i++) {
+    uint32_t right_x = 60 * 16 + 60;
+    uint32_t right_y = 140;
+    uint32_t spacing = 50;
+    uint32_t widget_height = (windows[0].height - (4 * spacing)) / 4;
+    for (uint32_t i = 1; i < 5; i++) {
         windows[i].x = right_x;
         windows[i].y = right_y + (i - 1) * (widget_height + spacing);
         windows[i].width  = 50 * 16;
         windows[i].height = widget_height;
     }
-    for (int i = 0; i < 5; i++) 
+    for (uint32_t i = 0; i < 5; i++) {
+        apps[i].MAX_VARS = MAX_VARS;
+        apps[i].vars = vars;
         app_init(&apps[i], NULL, &windows[i], 4096);
+    }
 
     // Initialize events
     keyboard_init();
@@ -69,14 +77,14 @@ void kernel_main(void) {
         fb_write_ansi(&fullscreen, "\033[31mERROR\033[0m Cannot mount FAT32 volume.\n");
 
     // Event loop
-    char buffer[4096];
+
     for (;;) {
-        for (int i = 1; i < 5; i++) {
+        for (uint32_t i = 1; i < 5; i++) {
             app_run(&apps[i]);  
         }
         console_prompt(&windows[0]);
         console_readline(&windows[0], buffer, sizeof(buffer));
-        console_execute(&windows[0], buffer);
+        console_execute(&windows[0], buffer, vars, MAX_VARS);
     }
 
 }

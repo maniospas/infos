@@ -26,14 +26,6 @@ static void set_color(Window* win, uint32_t color) {
     win->fg_color = color;
 }
 
-static inline uint64_t align_down(uint64_t addr, uint64_t align) {
-    return addr & ~(align - 1);
-}
-
-static inline uint64_t align_up(uint64_t addr, uint64_t align) {
-    return (addr + align - 1) & ~(align - 1);
-}
-
 /**
  * Map the framebuffer region into identity-mapped space.
  * This function assumes paging uses 2 MiB pages and an already identity-mapped kernel.
@@ -44,17 +36,12 @@ extern uint64_t pd_table[];
 
 extern uint64_t pml4_table[];
 extern uint64_t pdpt_table[];
-//extern uint64_t pd_tables[512][512]; // optional, but shows concept
 
 
 void map_framebuffer(uint64_t phys_addr, uint64_t size_bytes) {
     uint64_t base = phys_addr & ~0x1FFFFFULL;
     uint64_t end  = (phys_addr + size_bytes + 0x1FFFFFULL) & ~0x1FFFFFULL;
-
-    // Calculate PDPT index (each PD covers 1 GiB)
-    uint64_t pdpt_index = base >> 30; // 1 GiB per PDPT entry
-
-    // Find or create a PD for that 1 GiB region
+    uint64_t pdpt_index = base >> 30;
     uint64_t *pd;
     if (!(pdpt_table[pdpt_index] & 1)) {
         // allocate one statically or from a pool; here we reuse our single PD
@@ -95,42 +82,39 @@ void fb_init(void *mb_info_addr) {
             return;
         }
     }
-
-    // Fallback: framebuffer not found
-    //vga_write("Framebuffer not found!\n");
+    vga_write("Framebuffer not found!\n");
     for (;;) __asm__("hlt");
 }
 
-// === Pixel & char drawing ===
 static inline void fb_putpixel(int x, int y, uint64_t color) {
     fb_addr[y*fb_width + x] = color;
 }
 
 void fb_window_border(Window *win, char* title, uint32_t color) {
-    int x0 = win->x;
-    int y0 = win->y;
-    int has_title = title && *title;
+    uint32_t x0 = win->x;
+    uint32_t y0 = win->y;
+    uint32_t has_title = title && *title;
     if (has_title) 
         y0 -= CHAR_H;
-    int x1 = win->x + win->width - 1;
-    int y1 = win->y + win->height - 1;
-    for (int x = x0; x <= x1+8; x++) {
+    uint32_t x1 = win->x + win->width - 1;
+    uint32_t y1 = win->y + win->height - 1;
+    for (uint32_t x = x0; x <= x1+8; x++) {
         for(int i=1;i<12;i++)
             fb_putpixel(x, y1+i, 0x444444);
     }
-    for (int x = x0; x <= x1; x++) {
+    for (uint32_t x = x0; x <= x1; x++) {
         fb_putpixel(x, y0-1, win->DEFAULT_FG);
         fb_putpixel(x, y1+1, win->DEFAULT_FG);
         if(has_title)
-            for(int y=0;y<CHAR_H;++y) 
+            for(uint32_t y=0;y<CHAR_H;++y) 
                 fb_putpixel(x, y0+y, win->DEFAULT_FG);
     }
-    for (int y = y0; y <= y1; y++) {
+    for (uint32_t y = y0; y <= y1; y++) {
         fb_putpixel(x0, y, win->DEFAULT_FG);
         fb_putpixel(x1, y, win->DEFAULT_FG);
     }
-    for (int y = y0; y <= y1; y++) {
-        for(int i=1;i<8;i++)
+    for (uint32_t y = y0; y <= y1; y++) {
+        for(uint32_t i=1;i<8;i++)
             fb_putpixel(x1+i, y, 0x444444);
     }
     win->cursor_x = win->x + margin;
@@ -272,7 +256,6 @@ void fb_write_hex(Window* win, uint64_t val) {
     const char *hex = "0123456789ABCDEF";
     int shift = 60;
     int leading = 1;
-
     for (; shift >= 0; shift -= 4) {
         uint8_t nibble = (val >> shift) & 0xF;
         if (nibble == 0 && leading && shift)

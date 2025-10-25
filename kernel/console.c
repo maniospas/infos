@@ -10,7 +10,6 @@
 extern Application apps[5];
 extern int text_size;
 
-// === Local helper to power off system ===
 static void poweroff(Window *win) {
     fb_write_ansi(win, "\x1b[32mShutting down...\x1b[0m\n");
     // Modern QEMU/ACPI method
@@ -28,7 +27,6 @@ void console_prompt(Window* win) {
     fb_write_ansi(win, "\x1b[0m");
 }
 
-
 void console_readline(Window* win, char *buffer, size_t size) {
     size_t pos = 0;
     for (;;) {
@@ -37,7 +35,6 @@ void console_readline(Window* win, char *buffer, size_t size) {
             __asm__("hlt");
             continue;
         }
-
         if (key == KEY_BACKSPACE) {
             if (pos > 0) {
                 pos--;
@@ -45,13 +42,13 @@ void console_readline(Window* win, char *buffer, size_t size) {
             }
             continue;
         }
-
         char c = key_printable(key);
         if (c == '\n' || c == '\r') {
             buffer[pos] = '\0';
             fb_write(win, "\n");
             return;
-        } else if (c && pos < size - 1) {
+        } 
+        else if (c && pos < size - 1) {
             buffer[pos++] = c;
             char s[2] = {c, 0};
             fb_write(win, s);
@@ -62,7 +59,6 @@ void console_readline(Window* win, char *buffer, size_t size) {
 static void fb_draw_bar(Window* win, uint32_t used, uint32_t total, uint8_t width) {
     if (total == 0) total = 1; // avoid div by zero
     uint32_t filled = (used * width) / total;
-
     fb_write(win, " [");
     for (uint8_t i = 0; i < width; i++) {
         if (i < filled)
@@ -73,18 +69,127 @@ static void fb_draw_bar(Window* win, uint32_t used, uint32_t total, uint8_t widt
     fb_write(win, "] ");
 }
 
-
 void widget_run(Application* app) {
     fb_clear(app->window);
     fb_set_scale(app->window, 2, 1);
     fb_window_border(app->window, app->data, 0x000000);
     fb_set_scale(app->window, 3, 2);
-    console_execute(app->window, app->data);
+    console_execute(app->window, app->data, app->vars, app->MAX_VARS);
 }
 
-void console_execute(Window *win, const char *cmd) {
-    if (!strcmp(cmd, "help")) {
-        fb_write_ansi(win, "\n  \033[32mhelp\033[0m     - Show this help\n");
+uint64_t hash_str(const char* s) {
+    uint64_t hash = 1469598103934665603ULL;
+    while (*s) {
+        hash ^= (unsigned char)*s++;
+        hash *= 1099511628211ULL;
+    }
+    return hash;
+}
+
+#define MAX_HASH_VARS 1024
+typedef struct {
+    char* name;
+    char* value;
+} VarEntry;
+static VarEntry var_table[MAX_HASH_VARS];
+static size_t var_count = 0;
+
+// Finds or inserts a variable by name.
+// Returns index in var_table or -1 if full.
+static int find_or_insert_var(const char* name) {
+    uint64_t hash = hash_str(name);
+    size_t idx = hash % MAX_HASH_VARS;
+    size_t start = idx;
+
+    do {
+        VarEntry* e = &var_table[idx];
+        if (!e->name) {
+            // empty slot → insert
+            size_t len = strlen(name) + 1;
+            e->name = malloc(len);
+            memcpy(e->name, name, len);
+            e->value = NULL;
+            var_count++;
+            return (int)idx;
+        }
+        else if (!strcmp(e->name, name)) {
+            // found existing
+            return (int)idx;
+        }
+
+        idx = (idx + 1) % MAX_HASH_VARS;
+    } while (idx != start);
+
+    return -1; // table full
+}
+
+static int find_var(const char* name) {
+    uint64_t hash = hash_str(name);
+    size_t idx = hash % MAX_HASH_VARS;
+    size_t start = idx;
+    do {
+        VarEntry* e = &var_table[idx];
+        if (!e->name)
+            return -1; // not found
+        if (!strcmp(e->name, name))
+            return (int)idx;
+        idx = (idx + 1) % MAX_HASH_VARS;
+    } while (idx != start);
+
+    return -1;
+}
+
+
+void console_execute(Window *win, const char *cmd, char** vars, size_t MAX_VARS) {
+    if (!strncmp(cmd, "let ", 4)) {
+        const char* args = cmd + 4;
+        while (*args == ' ') args++;
+
+        // Extract variable name
+        const char* name_start = args;
+        while (*args && *args != ' ') args++;
+        size_t name_len = args - name_start;
+        if (name_len == 0) {
+            fb_write_ansi(win, "\n\x1b[31mERROR\x1b[0m Missing variable name.\n");
+            return;
+        }
+
+        // Copy variable name
+        char varname[64];
+        size_t i = 0;
+        while (i < name_len && i < sizeof(varname) - 1) {
+            varname[i] = name_start[i];
+            i++;
+        }
+        varname[i] = 0;
+
+        while (*args == ' ') args++;
+        if (!*args) {
+            fb_write_ansi(win, "\n\x1b[31mERROR\x1b[0m Missing value.\n");
+            return;
+        }
+
+        // Find or insert variable
+        int idx = find_or_insert_var(varname);
+        if (idx < 0) {
+            fb_write_ansi(win, "\n\x1b[31mERROR\x1b[0m Variable table full.\n");
+            return;
+        }
+
+        // Copy value string
+        size_t val_len = strlen(args) + 1;
+        char* new_val = malloc(val_len);
+        memcpy(new_val, args, val_len);
+
+        // Free old value if present
+        if (var_table[idx].value)
+            free(var_table[idx].value);
+
+        var_table[idx].value = new_val;
+        fb_write_ansi(win, "\x1b[32mOK\x1b[0m");
+    }
+    else if (!strcmp(cmd, "help")) {
+        fb_write_ansi(win, "\n  \033[32mhelp\033[0m   - Show this help\n");
         fb_write_ansi(win, "  \033[32mls\033[0m     - List files in current directory\n");
         fb_write_ansi(win, "  \033[32mcd\033[0m X   - Change directory (use /home for root)\n");
         fb_write_ansi(win, "  \033[32mcat\033[0m X  - Print file contents\n");
@@ -114,18 +219,12 @@ void console_execute(Window *win, const char *cmd) {
         fb_write_dec(win, usage.total_mb);
         fb_write(win, "MB\n\n");
     }
-
-    else if (!strcmp(cmd, "ls")) {
+    else if (!strcmp(cmd, "ls")) 
         fat32_ls(win, fat32_get_current_dir());
-    }
-
-    else if (!strncmp(cmd, "cd ", 3)) {
+    else if (!strncmp(cmd, "cd ", 3)) 
         fat32_cd(win, cmd + 3);
-    }
-
-    else if (!strncmp(cmd, "cat ", 4)) {
+    else if (!strncmp(cmd, "cat ", 4)) 
         fat32_cat(win, cmd + 4);
-    }
     else if (!strncmp(cmd, "text ", 5)) {
         const char *arg = cmd + 5;
         if (!strcmp(arg, "small")) 
@@ -174,8 +273,28 @@ void console_execute(Window *win, const char *cmd) {
                 return;
             }
         }
-        fb_write_ansi(win, "\n\033[31mERROR\033[0m No free widget slots available.\n\n");
+        fb_write_ansi(win, "\n\033[31mERROR\033[0m No free widget slots available.\n");
     }
-    else 
-        fb_write_ansi(win, "\n  \033[31mERROR\033[0m Unknown command. Type \033[32mhelp\033[0m for help.\n\n");
+    // else 
+    //     fb_write_ansi(win, "\n  \033[31mERROR\033[0m Unknown command. Type \033[32mhelp\033[0m for help.\n");
+    else {
+        const char* name = cmd;
+        while (*name == ' ') name++;
+        if (!*name) {
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing variable name.");
+            return;
+        }
+        char varname[64];
+        size_t i = 0;
+        while (*name && *name != ' ' && i < sizeof(varname) - 1) 
+            varname[i++] = *name++;
+        varname[i] = 0;
+        int idx = find_var(varname);
+        if (idx < 0 || !var_table[idx].value) {
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Not yet set: ");
+            fb_write(win, varname);
+            return;
+        }
+        fb_write(win, var_table[idx].value);
+    }
 }

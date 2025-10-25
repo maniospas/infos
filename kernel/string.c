@@ -37,3 +37,59 @@ size_t strlen(const char *s) {
         len++;
     return len;
 }
+
+// static int str_len(const char *s) {
+//     int n = 0;
+//     while (s && s[n]) n++;
+//     return n;
+// }
+
+const char* strfindlastdot(const char *s) {
+    const char *last = 0;
+    while (s && *s) {
+        if (*s == '.') last = s;
+        s++;
+    }
+    return last;
+}
+
+int strcasecmp(const char *a, const char *b) {
+    while (*a && *b) {
+        char ca = *a, cb = *b;
+        if (ca >= 'A' && ca <= 'Z') ca += 'a' - 'A';
+        if (cb >= 'A' && cb <= 'Z') cb += 'a' - 'A';
+        if (ca != cb) return ca - cb;
+        a++; b++;
+    }
+    return *a - *b;
+}
+
+// static int str_ncmp(const char *a, const char *b, int n) {
+//     for (int i = 0; i < n; i++) {
+//         if (a[i] != b[i] || !a[i] || !b[i])
+//             return a[i] - b[i];
+//     }
+//     return 0;
+// }
+
+int is_alnum(char c) {
+    return ((c >= 'A' && c <= 'Z') ||
+            (c >= 'a' && c <= 'z') ||
+            (c >= '0' && c <= '9'));
+}
+
+
+char to_lower(char c) { return (c >= 'A' && c <= 'Z') ? (c + 32) : c; }
+int str_length_bounded(const char *s, int maxn) {
+    int n = 0; while (n < maxn && s[n]) n++; return n;
+}
+int str_length(const char *s) { return str_length_bounded(s, 32767); }
+void str_copy(char *dst, const char *src, int maxlen) {
+    int i = 0; while (src[i] && i < maxlen - 1) { dst[i] = src[i]; i++; } dst[i] = 0;
+}
+void str_append_char(char *dst, int *len, char c, int maxlen) {
+    if (*len < maxlen - 1) { dst[*len] = c; (*len)++; dst[*len] = 0; }
+}
+int str_starts_with(const char *s, const char *prefix) {
+    int i = 0; while (prefix[i]) { if (s[i] != prefix[i]) return 0; i++; } return 1;
+}
