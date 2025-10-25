@@ -1,11 +1,11 @@
+#include "interrupts.h"
 #include "screen/screen.h"
 #include "screen/vga.h"
 #include "keyboard/keyboard.h"
 #include "file/fat32.h"
-#include "console.h"
-#include "interrupts.h"
+#include "user/console.h"
+#include "user/application.h"
 #include "memory/memory.h" 
-#include "application.h"
 
 extern void* multiboot_info_ptr;
 uint32_t text_size = 1;
@@ -40,7 +40,7 @@ void kernel_main(void) {
     windows[0].height -= 40 + windows[0].y + toolbar_size;
     fb_clear(&windows[0]);
     fb_set_scale(&windows[0], 2, 1);
-    fb_window_border(&windows[0], "Console", 0x000000);
+    fb_window_border(&windows[0], "Console", 0x000000, 0);
     fb_set_scale(&windows[0], 3, 2);
 
     // Initialize variables
@@ -80,7 +80,7 @@ void kernel_main(void) {
 
     for (;;) {
         for (uint32_t i = 1; i < 5; i++) {
-            app_run(&apps[i]);  
+            app_run(&apps[i], i);  
         }
         console_prompt(&windows[0]);
         console_readline(&windows[0], buffer, sizeof(buffer));

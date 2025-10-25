@@ -28,4 +28,4 @@ void fb_set_scale(Window *win, uint32_t nom, uint32_t denom);
 void fb_write_dec(Window *win, uint64_t num);
 void fb_write_hex(Window *win, uint64_t num);
 void init_fullscreen(Window* win);
-void fb_window_border(Window *win, char* title, uint32_t color);
+void fb_window_border(Window *win, char* title, uint32_t color, int appid);

@@ -21,6 +21,7 @@
         "disk.h": "c",
         "cstdlib": "c",
         "region.h": "c",
-        "application.h": "c"
+        "application.h": "c",
+        "io.h": "c"
     }
 }
