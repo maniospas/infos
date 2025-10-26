@@ -32,7 +32,7 @@ void memory_buddy_init(void) {
     for (int i = 0; i < ORDER_COUNT; i++)
         buddy.free_list[i] = NULL;
     int max_order = MIN_ORDER;
-    while (((1UL << (max_order + 1)) <= heap_size) && (max_order < 63))
+    while (((1UL << (max_order + 1)) <= heap_size) && (max_order < MAX_ORDER))
         max_order++;
     buddy.max_order = max_order;
     Block* first = (Block*)heap_base;
@@ -43,13 +43,10 @@ void memory_buddy_init(void) {
 
 // ==== Allocation ====
 static int order_for_size(size_t size) {
-    int order = MIN_ORDER;
-    size_t block_size = (1UL << order);
-    while (block_size < size + sizeof(uint64_t) && order < buddy.max_order) {
-        order++;
-        block_size <<= 1;
-    }
-    return order;
+    int max_order = MIN_ORDER;
+    while (((1UL << (max_order + 1)) <= size) && (max_order < MAX_ORDER))
+        max_order++;
+    return max_order;
 }
 
 void* malloc(size_t size) {

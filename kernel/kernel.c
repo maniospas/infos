@@ -62,7 +62,15 @@ void kernel_main(void) {
     if (fat32_init(partition_lba_start))
         fb_write_ansi(fullscreen, "\033[31mERROR\033[0m Cannot mount FAT32 volume.\n");
 
+
+    // char* ch = malloc(1024*1024*2);
+    // char* ch2 = malloc(1024*1024*1);
+    // if(ch)
+    //     for(int i=0;i<1024*1024;i++)
+    //         ch[i] = '\0';
+
     // Event loop
+
     for (;;) {
         // Adjust layout 
         {
