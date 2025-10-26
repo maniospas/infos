@@ -144,7 +144,6 @@ void fat32_ls(Window* win, uint32_t dir_cluster) {
     uint32_t cluster = dir_cluster;
     uint8_t sector_buf[512];
     int eps = bpb.BytsPerSec / sizeof(struct FAT32_DirEntry);
-    fb_write(win, "\n");
     while (cluster != 0) {
         uint32_t lba = cluster_to_lba(cluster);
         for (int s = 0; s < bpb.SecPerClus; s++) {
@@ -163,6 +162,8 @@ void fat32_ls(Window* win, uint32_t dir_cluster) {
                 // Normal entry
                 char shortnm[13]; make_short_name_lower(e[i].Name, shortnm);
                 const char *disp = choose_name(lfn_buf, shortnm);
+                if(i)
+                    fb_write(win, "\n");
                 fb_write(win, "  ");
                 if (e[i].Attr & 0x10) fb_write_ansi(win, "\033[33m");
                 fb_write(win, disp);
@@ -173,7 +174,6 @@ void fat32_ls(Window* win, uint32_t dir_cluster) {
                     fb_write_dec(win, e[i].FileSize);
                     fb_write_ansi(win, " bytes\033[0m");
                 }
-                fb_put_char(win, '\n');
                 lfn_buf[0] = 0; // reset for next
             }
         }
@@ -322,7 +322,6 @@ void fat32_cat(Window* win, const char *filename) {
                 if (e[i].Name[0] == 0x00) {
                     fb_write_ansi(win, "\n\033[31m  ERROR\033[0m No such file: ");
                     fb_write(win, filename);
-                    fb_write(win, "\n");
                     return;
                 }
                 if (e[i].Name[0] == 0xE5) { lfn_buf[0] = 0; continue; }
@@ -426,8 +425,6 @@ void fat32_cat(Window* win, const char *filename) {
                         for (uint32_t k = 0; k < bytes_read && k < size; k++)
                             fb_put_char(win, file_buffer[k]);
                     }
-
-                    fb_write(win, "\n");
                     return;
                 }
 
@@ -436,9 +433,8 @@ void fat32_cat(Window* win, const char *filename) {
         }
         cluster = get_next_cluster(cluster);
     }
-    fb_write_ansi(win, "  \x1b[32mERROR\x1b[0m File not found: ");
+    fb_write_ansi(win, "\x1b[32mERROR\x1b[0m File not found: ");
     fb_write(win, filename);
-    fb_write(win, "\n");
 }
 
 

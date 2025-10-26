@@ -15,22 +15,15 @@ typedef struct {
 static BuddyAllocator buddy;
 
 #define ALIGN_UP(x, a) (((x) + ((a)-1)) & ~((a)-1))
-#define ALIGN_DOWN(x, a) ((x) & ~((a) - 1))
 static inline uintptr_t buddy_of(uintptr_t addr, int order) {
     return addr ^ (1UL << order);
 }
-
-
-// ==== Allocation ====
-static inline int order_for_size(size_t size) {
-    return 64 - __builtin_clzll(size-1);
-}
-
 void memory_buddy_init(void) {
     uintptr_t addr = (uintptr_t)heap_base;
     size_t size = heap_size;
+
     size_t align = (1UL << MIN_ORDER);
-    addr = ALIGN_DOWN(addr, align);
+    addr = ALIGN_UP(addr, align);
     size -= (addr - (uintptr_t)heap_base);
     size &= ~((align - 1));
     heap_base = (uint8_t*)addr;
@@ -38,23 +31,40 @@ void memory_buddy_init(void) {
     heap_used = 0;
     for (int i = 0; i < ORDER_COUNT; i++)
         buddy.free_list[i] = NULL;
-    buddy.max_order = order_for_size(heap_size);
+    int max_order = MIN_ORDER;
+    while (((1UL << (max_order + 1)) <= heap_size) && (max_order < 63))
+        max_order++;
+    buddy.max_order = max_order;
     Block* first = (Block*)heap_base;
     first->next = NULL;
-    buddy.free_list[buddy.max_order - MIN_ORDER] = first;
+    buddy.free_list[max_order - MIN_ORDER] = first;
+}
+
+
+// ==== Allocation ====
+static int order_for_size(size_t size) {
+    int order = MIN_ORDER;
+    size_t block_size = (1UL << order);
+    while (block_size < size + sizeof(uint64_t) && order < buddy.max_order) {
+        order++;
+        block_size <<= 1;
+    }
+    return order;
 }
 
 void* malloc(size_t size) {
     if (size == 0) return NULL;
+
     int order = order_for_size(size);
     if (order > buddy.max_order) return NULL;
+
     int i = order - MIN_ORDER;
-    while(i < (buddy.max_order - MIN_ORDER + 1) && buddy.free_list[i] == NULL)
+    while (i < (buddy.max_order - MIN_ORDER + 1) && buddy.free_list[i] == NULL)
         i++;
-    if(i >= (buddy.max_order - MIN_ORDER + 1)) 
-        return NULL;
+    if (i >= (buddy.max_order - MIN_ORDER + 1)) return NULL;
+
     // Split larger blocks until correct size
-    for(; i > order - MIN_ORDER; i--) {
+    for (; i > order - MIN_ORDER; i--) {
         Block* block = buddy.free_list[i];
         buddy.free_list[i] = block->next;
         uintptr_t addr = (uintptr_t)block;
@@ -65,10 +75,13 @@ void* malloc(size_t size) {
         b2->next = buddy.free_list[i - 1];
         buddy.free_list[i - 1] = b1;
     }
+
     // Allocate from the correct order list
     Block* alloc = buddy.free_list[order - MIN_ORDER];
     buddy.free_list[order - MIN_ORDER] = alloc->next;
+
     heap_used += (1UL << order);
+
     uint64_t* header = (uint64_t*)alloc;
     *header = order;
     return (void*)(header + 1);
@@ -76,17 +89,20 @@ void* malloc(size_t size) {
 
 // ==== Free ====
 void free(void* ptr) {
-    if (!ptr) 
-        return;
+    if (!ptr) return;
+
     uint64_t* header = (uint64_t*)ptr - 1;
     int order = (int)*header;
     uintptr_t addr = (uintptr_t)header;
+
     heap_used -= (1UL << order);
-    while(order <= buddy.max_order) {
+
+    while (order <= buddy.max_order) {
         uintptr_t buddy_addr = buddy_of(addr, order);
         Block** list = &buddy.free_list[order - MIN_ORDER];
         Block* prev = NULL;
         Block* curr = *list;
+
         while (curr) {
             if ((uintptr_t)curr == buddy_addr) {
                 // Found buddy — remove it and merge
@@ -99,11 +115,13 @@ void free(void* ptr) {
             prev = curr;
             curr = curr->next;
         }
+
         // No buddy found — add this block
         Block* block = (Block*)addr;
         block->next = *list;
         *list = block;
         return;
+
     merge_again: ;
     }
 }

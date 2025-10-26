@@ -49,19 +49,6 @@ void console_readline(Window* win, char *buffer, size_t size) {
     }
 }
 
-static void fb_draw_bar(Window* win, uint32_t used, uint32_t total, uint8_t width) {
-    if (total == 0) total = 1; // avoid div by zero
-    uint32_t filled = (used * width) / total;
-    fb_write(win, " [");
-    for (uint8_t i = 0; i < width; i++) {
-        if (i < filled)
-            fb_write(win, "#");
-        else
-            fb_write(win, "-");
-    }
-    fb_write(win, "] ");
-}
-
 void widget_run(Application* app, int appid) {
     if(!app->window || !app->window->width || !app->window->height)
         return;
@@ -214,20 +201,19 @@ void console_execute(Window *win, const char *cmd, char** vars, size_t MAX_VARS)
         uint64_t memory_cons = memory_used() + (memory_total_with_regions() - memory_total());
         struct FAT32_Usage usage = fat32_get_usage();
 
-        fb_write_ansi(win, "\n\033[35m  Memory\033[0m ");
-        fb_draw_bar(win, (uint32_t)(memory_cons / (1024 * 1024)),
-                    (uint32_t)(memory_size / (1024 * 1024)), 10);
+        fb_write_ansi(win, "\033[35m  Memory\033[0m ");
+        fb_bar(win, (uint32_t)(memory_cons), (uint32_t)(memory_size), 50);
         fb_write_dec(win, (memory_cons) / (1024 * 1024));
         fb_write(win, "MB / ");
         fb_write_dec(win, (memory_size) / (1024 * 1024));
         fb_write(win, "MB\n");
 
         fb_write_ansi(win, "  \033[35mDisk\033[0m   ");
-        fb_draw_bar(win, usage.used_mb, usage.total_mb, 10);
+        fb_bar(win, usage.used_mb, usage.total_mb, 50);
         fb_write_dec(win, usage.used_mb);
         fb_write(win, "MB / ");
         fb_write_dec(win, usage.total_mb);
-        fb_write(win, "MB\n\n");
+        fb_write(win, "MB");
     }
     else if (!strcmp(cmd, "ls")) 
         fat32_ls(win, fat32_get_current_dir());
@@ -356,6 +342,8 @@ void console_execute(Window *win, const char *cmd, char** vars, size_t MAX_VARS)
                 init_fullscreen(apps[i].window);
                 apps[i].window->width = 0;
                 apps[i].window->height = 0;
+                apps[i].vars = vars;
+                apps[i].MAX_VARS = MAX_VARS;
                 if(!apps[i].window) {
                     fb_write_ansi(win, "\033[31mERROR\033[0m Not enough memory to start application.");
                     return;

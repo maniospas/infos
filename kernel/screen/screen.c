@@ -332,3 +332,42 @@ void fb_write_ansi(Window* win, const char *s) {
             fb_put_char(win, *s++);
     }
 }
+
+void fb_bar(Window* win, long int value, long int max_value, size_t width) {
+    if (!fb_addr || max_value <= 0) return;
+
+    // Clamp value range
+    if (value < 0) value = 0;
+    if (value > max_value) value = max_value;
+
+    // Compute dimensions
+    int bar_x = win->cursor_x;
+    int bar_y = win->cursor_y + CHAR_H/2-CHAR_H/12;
+    int bar_w = width;
+    int bar_h = CHAR_H / 3;  // Half the character height looks nice
+
+    // Compute filled width proportionally
+    int filled_w = (int)(((long double)value / (long double)max_value) * bar_w);
+
+    // Draw bar background
+    for (int y = 0; y < bar_h; y++) {
+        for (int x = 0; x < bar_w; x++) {
+            uint32_t color = (x < filled_w) ? win->fg_color : win->bg_color;
+            fb_putpixel(bar_x + x, bar_y + y, color);
+        }
+    }
+
+    // Optional border around bar
+    uint32_t border_color = win->DEFAULT_FG;
+    for (int x = -1; x <= bar_w; x++) {
+        fb_putpixel(bar_x + x, bar_y - 1, border_color);
+        fb_putpixel(bar_x + x, bar_y + bar_h, border_color);
+    }
+    for (int y = -1; y <= bar_h; y++) {
+        fb_putpixel(bar_x - 1, bar_y + y, border_color);
+        fb_putpixel(bar_x + bar_w, bar_y + y, border_color);
+    }
+
+    // Move cursor down for next elements
+    win->cursor_x += bar_w+10;
+}

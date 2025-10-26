@@ -24,5 +24,5 @@ void paging_map_heap(void) {
         pd_table_heap[index] = (p & ~(PAGE_SIZE_2M - 1)) | PAGE_PRESENT | PAGE_RW | PAGE_PS;
     }
     heap_base = (uint8_t*)HEAP_VIRT_BASE;   // use virtual address going forward
-    //heap_size = virt_end - virt_start;
+    heap_size = virt_end - virt_start;
 }
