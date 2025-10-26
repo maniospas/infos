@@ -39,8 +39,6 @@ def generate_font_array(font_path):
             glyph = [[img.getpixel((x, y)) for y in range(CHAR_HEIGHT)] for x in range(CHAR_WIDTH)]
             out.append(glyph)
 
-
-
         output_header = os.path.join(font_dir, f"{font_name}_font{CHAR_WIDTH}x{CHAR_HEIGHT}.h")
         macro = f"FONT{CHAR_WIDTH}X{CHAR_HEIGHT}_H"
 

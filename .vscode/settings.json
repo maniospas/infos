@@ -25,6 +25,7 @@
         "io.h": "c",
         "font16x32.h": "c",
         "robotomono-regular_font16x32.h": "c",
-        "font_font32x64.h": "c"
+        "font_font32x64.h": "c",
+        "random": "c"
     }
 }

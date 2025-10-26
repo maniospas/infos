@@ -1,6 +1,4 @@
-#ifndef MEMORY_H
-#define MEMORY_H
-
+#pragma once
 #include <stddef.h>
 #include <stdint.h>
 
@@ -9,7 +7,7 @@ extern "C" {
 #endif
 
 #define MIN_ORDER 12  // 4 KB
-#define MAX_ORDER 32  // theoretical max, dynamically limited
+#define MAX_ORDER 42  // 1TB theoretical max, dynamically limited
 #define ORDER_COUNT (MAX_ORDER - MIN_ORDER + 1)
 
 typedef struct Block {
@@ -28,6 +26,4 @@ uint64_t memory_total(void);
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

@@ -63,7 +63,6 @@ void kernel_main(void) {
         fb_write_ansi(fullscreen, "\033[31mERROR\033[0m Cannot mount FAT32 volume.\n");
 
     // Event loop
-
     for (;;) {
         // Adjust layout 
         {

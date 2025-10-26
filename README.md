@@ -53,3 +53,7 @@ After completing these steps, you can build and run LettuOS directly on any Linu
 - drivers/ — framebuffer, keyboard, and process management subsystems
 - Makefile — build and run automation
 - bootstrapping.txt — toolchain setup instructions
+
+**Notes:**
+- *malloc* or *realloc* are expected to return NULL if they try to allocate more than half (or even lower numbers) 
+of remainder memory. This is due to the buddy memory management system.

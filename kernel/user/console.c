@@ -150,7 +150,6 @@ static int find_var(const char* name) {
     return -1;
 }
 
-
 void console_execute(Window *win, const char *cmd, char** vars, size_t MAX_VARS) {
     if (!strncmp(cmd, "let ", 4)) {
         const char* args = cmd + 4;
@@ -173,7 +172,6 @@ void console_execute(Window *win, const char *cmd, char** vars, size_t MAX_VARS)
             i++;
         }
         varname[i] = 0;
-
         while (*args == ' ') args++;
         if (!*args) {
             fb_write_ansi(win, "\n\x1b[31mERROR\x1b[0m Missing value.\n");
@@ -200,7 +198,7 @@ void console_execute(Window *win, const char *cmd, char** vars, size_t MAX_VARS)
         fb_write_ansi(win, "\x1b[32mOK\x1b[0m");
     }
     else if (!strcmp(cmd, "help")) {
-        fb_write_ansi(win, "\n  \033[32mhelp\033[0m   - Show this help\n");
+        fb_write_ansi(win, "  \033[32mhelp\033[0m   - Show this help\n");
         fb_write_ansi(win, "  \033[32mls\033[0m     - List files in current directory\n");
         fb_write_ansi(win, "  \033[32mcd\033[0m X   - Change directory (use /home for root)\n");
         fb_write_ansi(win, "  \033[32mcat\033[0m X  - Print file contents\n");
@@ -209,7 +207,7 @@ void console_execute(Window *win, const char *cmd, char** vars, size_t MAX_VARS)
         fb_write_ansi(win, "  \033[32mtext\033[0m X - Sets font X among big, small, default\n");
         fb_write_ansi(win, "  \033[32mapp\033[0m X  - Keep running command X\n");
         fb_write_ansi(win, "  \033[32mkill\033[0m X - Kills app #X (look at top right)\n");
-        fb_write_ansi(win, "  \033[32mexit\033[0m   - Shut down\n");
+        fb_write_ansi(win, "  \033[32mexit\033[0m   - Shut down");
     }
     else if (!strcmp(cmd, "ps")) {
         uint64_t memory_size = memory_total_with_regions();

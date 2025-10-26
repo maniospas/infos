@@ -213,7 +213,7 @@ void fb_put_char(Window* win, char c) {
                 uint8_t bg_g = (win->bg_color >> 8) & 0xFF;
                 uint8_t bg_b = win->bg_color & 0xFF;
                 
-                interp = interp * (0.5f + 0.5f * interp);
+                interp = interp * (0.2f + 0.8f * interp);
                 // Smooth color interpolation
                 uint8_t out_r = (uint8_t)(bg_r + (fg_r - bg_r) * interp);
                 uint8_t out_g = (uint8_t)(bg_g + (fg_g - bg_g) * interp);
