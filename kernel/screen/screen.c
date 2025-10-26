@@ -2,7 +2,7 @@
 #include "../multiboot2.h"
 #include <stdint.h>
 #include <stddef.h>
-#include "font8x16.h"
+#include "font_font32x64.h"
 #include "vga.h"
 
 // Multiboot2 framebuffer info
@@ -14,12 +14,13 @@ uint8_t  fb_bpp = 0;
 uint32_t margin = 20;
 #define scale win->scale_nominator/win->scale_denominator
 #define invscale win->scale_denominator/win->scale_nominator
-#define CHAR_W (8*scale)
-#define CHAR_H (16*scale)
+#define CHAR_W (font_size/2*scale)
+#define CHAR_H (font_size*scale)
+uint32_t font_size = 64;
 
 void fb_set_scale(Window* win, uint32_t nom, uint32_t denom) {
     win->scale_nominator = nom;
-    win->scale_denominator = denom;
+    win->scale_denominator = denom*4;
 }
 
 static void set_color(Window* win, uint32_t color) {
@@ -163,25 +164,67 @@ void fb_clear(Window *win) {
     }
 }
 
-
-uint8_t * font8x16 = ATIx550_8x16; //ATIx550_8x16;IBM_VGA_8x16;
-
 void fb_put_char(Window* win, char c) {
     if (!fb_addr) return;
 
     if (c == '\n') {
         win->cursor_x = win->x+margin;
         win->cursor_y += CHAR_H;
-    } else {
-        const uint8_t *glyph = &font8x16[16 * (uint8_t)c];
-        for (uint32_t y = 0; y < CHAR_H && y<win->y+win->height; y++) {
-            for (uint32_t x = 0; x < CHAR_W && x<win->width+win->x; x++) {
-                if (glyph[y * invscale] & (1 << (7 - x * invscale)))
-                    fb_putpixel(win->cursor_x + x, win->cursor_y + y, win->fg_color);
-                else
-                    fb_putpixel(win->cursor_x + x, win->cursor_y + y, win->bg_color);
+    } 
+    else {
+        for (uint32_t y = 0; y < CHAR_H && y < win->y + win->height; y++) {
+            for (uint32_t x = 0; x < CHAR_W && x < win->x + win->width; x++) {
+                float src_x = x * invscale;
+                float src_y = y * invscale;
+
+                int x0 = (int)src_x;
+                int y0 = (int)src_y;
+                int x1 = x0 + 1;
+                int y1 = y0 + 1;
+
+                if (x1 >= CHAR_W) x1 = CHAR_W - 1;
+                if (y1 >= CHAR_H) y1 = CHAR_H - 1;
+
+                float dx = src_x - x0;
+                float dy = src_y - y0;
+
+                float p00 = font32x64[c - FONT32X64_FIRST][x0][y0];
+                float p10 = font32x64[c - FONT32X64_FIRST][x1][y0];
+                float p01 = font32x64[c - FONT32X64_FIRST][x0][y1];
+                float p11 = font32x64[c - FONT32X64_FIRST][x1][y1];
+
+                // Bilinear interpolation
+                float interp =
+                    p00 * (1 - dx) * (1 - dy) +
+                    p10 * dx * (1 - dy) +
+                    p01 * (1 - dx) * dy +
+                    p11 * dx * dy;
+
+                // Clamp to [0, 1]
+                if (interp < 0.0f) interp = 0.0f;
+                if (interp > 1.0f) interp = 1.0f;
+
+                // Blend colors smoothly
+                uint8_t fg_r = (win->fg_color >> 16) & 0xFF;
+                uint8_t fg_g = (win->fg_color >> 8) & 0xFF;
+                uint8_t fg_b = win->fg_color & 0xFF;
+
+                uint8_t bg_r = (win->bg_color >> 16) & 0xFF;
+                uint8_t bg_g = (win->bg_color >> 8) & 0xFF;
+                uint8_t bg_b = win->bg_color & 0xFF;
+                
+                interp = interp * (0.5f + 0.5f * interp);
+                // Smooth color interpolation
+                uint8_t out_r = (uint8_t)(bg_r + (fg_r - bg_r) * interp);
+                uint8_t out_g = (uint8_t)(bg_g + (fg_g - bg_g) * interp);
+                uint8_t out_b = (uint8_t)(bg_b + (fg_b - bg_b) * interp);
+
+                uint32_t color = (out_r << 16) | (out_g << 8) | out_b;
+                fb_putpixel(win->cursor_x + x, win->cursor_y + y, color);
             }
         }
+
+
         win->cursor_x += CHAR_W;
         if (win->cursor_x + CHAR_W >= fb_width - margin) {
             win->cursor_x = win->x+margin;

@@ -45,7 +45,7 @@ void kernel_main(void) {
         vars[i] = NULL; 
 
     // Initialize apps
-    MAX_APPLICATIONS = 8;
+    MAX_APPLICATIONS = 16;
     apps = malloc(sizeof(Application)*MAX_APPLICATIONS);
     for (uint32_t i = 0; i < MAX_APPLICATIONS; i++) {
         apps[i].MAX_VARS = MAX_VARS;

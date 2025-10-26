@@ -67,6 +67,10 @@ run: $(ISO) $(DISK_IMG)
 # 	qemu-system-x86_64 -cdrom $(ISO) -boot d -m 512M -vga virtio -display sdl \
 # 		-drive file=$(DISK_IMG),format=raw,media=disk
 
+runtiny: $(ISO)
+	@echo "  QEMU (128 KB Tiny Mode)"
+	qemu-system-x86_64 -cdrom "LettuOS.iso" -boot d -m 4M -vga virtio -display sdl,gl=on -full-screen \
+    -drive file="fat32.img",format=raw,media=disk
 
 # === Clean ===
 clean:

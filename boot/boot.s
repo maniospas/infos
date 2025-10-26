@@ -42,10 +42,10 @@ section .bss
 align 16
 global safe_mb_copy
 safe_mb_copy:
-    resb 16384            ; 16 KiB buffer for Multiboot info
+    resb 8192            ; 8 KiB buffer for Multiboot info
 
 stack_bottom:
-    resb 16384
+    resb 8192
 stack_top:
 
 ; ---------------------------------------------------------------------------
@@ -159,14 +159,14 @@ pdpt_table:
     times 510 dq 0              ; rest unused
 align 4096
 
-; PD #0 → first 64 MiB of memory
+; PD #0 → first 4 MiB of memory
 pd_table:
     %assign i 0
-    %rep 32
+    %rep 2
         dq (i * 0x200000) | 0x83
         %assign i i + 1
     %endrep
-    times (512 - 32) dq 0       ; fill rest with zeros
+    times (512 - 2) dq 0       ; fill rest with zeros
 align 4096
 
 ; PD #1 → heap region (empty, mapped dynamically)

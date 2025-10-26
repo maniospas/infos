@@ -2,7 +2,6 @@
 #include "../multiboot2.h"
 #include <stdint.h>
 #include <stddef.h>
-#include "font8x16.h"
 #include "vga.h"
 
 #pragma GCC target("no-mmx,no-sse,no-sse2")

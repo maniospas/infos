@@ -3,3 +3,4 @@
 iso/
 .vscode/
 fat32.img
+venv
