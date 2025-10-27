@@ -26,6 +26,10 @@
         "font16x32.h": "c",
         "robotomono-regular_font16x32.h": "c",
         "font_font32x64.h": "c",
-        "random": "c"
+        "random": "c",
+        "spleen_font32x64.h": "c",
+        "spleen-32x64_font32x64.h": "c",
+        "spleen-16x32_font16x32.h": "c",
+        "spleen-8x16_font8x16.h": "c"
     }
 }

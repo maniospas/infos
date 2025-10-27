@@ -9,6 +9,7 @@
 
 extern void* multiboot_info_ptr;
 uint32_t text_size = 1;
+extern uint32_t margin;
 
 __attribute__((noreturn))
 void kernel_main(void) {
@@ -28,14 +29,14 @@ void kernel_main(void) {
 
     uint32_t toolbar_size = 100;
     fullscreen->x = 20;
-    fullscreen->y = 140;
+    fullscreen->y = 180;
     fullscreen->width  = 60 * 16;
     fullscreen->height -= 40 + fullscreen->y + toolbar_size;
     fb_clear(fullscreen);
     fb_set_scale(fullscreen, 2, 1);
     fb_window_border(fullscreen, "Console", 0x000000, 0);
     fb_set_scale(fullscreen, 3, 2);
-    fullscreen->cursor_y -= 20;
+    //fullscreen->cursor_y -= 20;
 
     // Initialize variables
     size_t MAX_VARS = 128; 
@@ -80,7 +81,7 @@ void kernel_main(void) {
                     active_count++;
             }
             uint32_t right_x = 60 * 16 + 60;
-            uint32_t right_y = 140;
+            uint32_t right_y = 180;
             uint32_t spacing = 40;
             uint32_t total_height = fullscreen->height;  // same region as before
             uint32_t available_height = total_height - (active_count > 1 ? (active_count - 1) * spacing : 0);
@@ -104,8 +105,18 @@ void kernel_main(void) {
             app_run(&apps[i], i);
         apps[0].data[0] = '\0';// always read data
         console_prompt(fullscreen);
+        margin += 40;
         console_readline(fullscreen, apps[0].data, APPLICATION_MESSAGE_SIZE);
+        if (!strcmp(apps[0].data, "clear")) 
+            margin -= 40;
+        else
+            apps[0].window->cursor_y += 10;
         console_execute(&apps[0]);
+        if(margin>40) {
+            margin -= 40;
+            apps[0].window->cursor_x -= 40;
+            apps[0].window->cursor_y += 10;
+        }
     }
 
 }

@@ -219,13 +219,13 @@ void console_execute_overwrite(Application *app) {
         uint64_t memory_cons = memory_used() + (memory_total_with_regions() - memory_total());
         struct FAT32_Usage usage = fat32_get_usage();
 
-        fb_write_ansi(win, "\033[35m  Memory\033[0m ");
+        fb_write_ansi(win, "\033[35mMemory\033[0m ");
         fb_bar(win, (uint32_t)(memory_cons), (uint32_t)(memory_size), 50);
         fb_write_dec(win, (memory_cons) / (1024 * 1024));
         fb_write(win, "MB / ");
         fb_write_dec(win, (memory_size) / (1024 * 1024));
         fb_write(win, "MB\n");
-        fb_write_ansi(win, "  \033[35mDisk\033[0m   ");
+        fb_write_ansi(win, "\033[35mDisk\033[0m   ");
         fb_bar(win, (long int )usage.used_mb, (long int )usage.total_mb, 50);
         fb_write_dec(win, usage.used_mb);
         fb_write(win, "MB / ");
@@ -236,8 +236,8 @@ void console_execute_overwrite(Application *app) {
         fat32_ls(win, fat32_get_current_dir());
     else if (!strncmp(cmd, "cd ", 3)) 
         fat32_cd(win, cmd + 3);
-    else if (!strncmp(cmd, "cat ", 4)) 
-        fat32_cat(win, cmd + 4);
+    // else if (!strncmp(cmd, "cat ", 4)) 
+    //    fat32_cat(win, cmd + 4);
     else if (!strncmp(cmd, "text ", 5)) {
         const char *arg = cmd + 5;
         if (!strcmp(arg, "small")) 

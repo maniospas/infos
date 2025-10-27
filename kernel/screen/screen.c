@@ -2,7 +2,9 @@
 #include "../multiboot2.h"
 #include <stdint.h>
 #include <stddef.h>
-#include "font_font32x64.h"
+#include "spleen-32x64_font32x64.h"
+#include "spleen-16x32_font16x32.h"
+#include "spleen-8x16_font8x16.h"
 #include "vga.h"
 
 // Multiboot2 framebuffer info
@@ -18,9 +20,42 @@ uint32_t margin = 20;
 #define CHAR_H (font_size*scale)
 uint32_t font_size = 64;
 
+typedef struct {
+    const void *data;
+    uint32_t width;
+    uint32_t height;
+    uint32_t first;
+    uint32_t last;
+} FontInfo;
+
+// Declare each Spleen variant
+static const FontInfo FONTS[] = {
+    { (const void *)font8x16,  8, 16,  FONT8X16_FIRST,  FONT8X16_LAST  },
+    { (const void *)font16x32, 16, 32, FONT16X32_FIRST, FONT16X32_LAST },
+    { (const void *)font32x64, 32, 64, FONT32X64_FIRST, FONT32X64_LAST },
+};
+static const size_t FONT_COUNT = sizeof(FONTS) / sizeof(FONTS[0]);
+
+static const FontInfo* get_best_font(uint32_t desired_size) {
+    const FontInfo* best = &FONTS[0];
+    uint32_t best_diff = (desired_size > FONTS[0].height)
+        ? desired_size - FONTS[0].height
+        : FONTS[0].height - desired_size;
+
+    for (size_t i = 1; i < FONT_COUNT; i++) {
+        uint32_t diff = (desired_size > FONTS[i].height)
+            ? desired_size - FONTS[i].height
+            : FONTS[i].height - desired_size;
+        if (diff < best_diff)
+            best = &FONTS[i], best_diff = diff;
+    }
+    return best;
+}
+
+
 void fb_set_scale(Window* win, uint32_t nom, uint32_t denom) {
     win->scale_nominator = nom;
-    win->scale_denominator = denom*4;
+    win->scale_denominator = denom*3;
 }
 
 static void set_color(Window* win, uint32_t color) {
@@ -125,7 +160,7 @@ void fb_window_border(Window *win, char* title, uint32_t color, int appid) {
         win->bg_color = win->DEFAULT_FG;
         fb_write(win, title);
         win->fg_color = 0x006600;
-        win->cursor_x = win->x+win->width-50;
+        win->cursor_x = win->x+win->width-80;
         if(appid>=0) {
             fb_write(win, " #");
             fb_write_dec(win, appid);
@@ -168,86 +203,74 @@ void fb_put_char(Window* win, char c) {
     if (!fb_addr) return;
 
     if (c == '\n') {
-        win->cursor_x = win->x+margin;
+        win->cursor_x = win->x + margin;
         win->cursor_y += CHAR_H;
-    } 
-    else {
-        for (uint32_t y = 0; y < CHAR_H && y < win->y + win->height; y++) {
-            for (uint32_t x = 0; x < CHAR_W && x < win->x + win->width; x++) {
-                uint32_t src_x = x * invscale;
-                uint32_t src_y = y * invscale;
-                uint32_t color = font32x64[c - FONT32X64_FIRST][src_x][src_y]?win->fg_color:win->bg_color;
-                fb_putpixel(win->cursor_x + x, win->cursor_y + y, color);
-                /*float src_x = x * invscale;
-                float src_y = y * invscale;
+        return;
+    }
 
-                int x0 = (int)src_x;
-                int y0 = (int)src_y;
-                int x1 = x0 + 1;
-                int y1 = y0 + 1;
+    const FontInfo* fontinfo = get_best_font(font_size);
+    uint32_t fw = fontinfo->width;
+    uint32_t fh = fontinfo->height;
 
-                if (x1 >= CHAR_W) x1 = CHAR_W - 1;
-                if (y1 >= CHAR_H) y1 = CHAR_H - 1;
+    if ((uint8_t)c < fontinfo->first || (uint8_t)c > fontinfo->last)
+        return; // Ignore unsupported characters
 
-                float dx = src_x - x0;
-                float dy = src_y - y0;
+    // Render character
+    for (uint32_t y = 0; y < CHAR_H && win->cursor_y + y < win->y + win->height; y++) {
+        for (uint32_t x = 0; x < CHAR_W && win->cursor_x + x < win->x + win->width; x++) {
 
-                float p00 = font32x64[c - FONT32X64_FIRST][x0][y0];
-                float p10 = font32x64[c - FONT32X64_FIRST][x1][y0];
-                float p01 = font32x64[c - FONT32X64_FIRST][x0][y1];
-                float p11 = font32x64[c - FONT32X64_FIRST][x1][y1];
+            uint32_t src_x = (uint32_t)(x * invscale);
+            uint32_t src_y = (uint32_t)(y * invscale);
+            if (src_x >= fw || src_y >= fh)
+                continue;
 
-                // Bilinear interpolation
-                float interp =
-                    p00 * (1 - dx) * (1 - dy) +
-                    p10 * dx * (1 - dy) +
-                    p01 * (1 - dx) * dy +
-                    p11 * dx * dy;
+            uint8_t bit = 0;
 
-                // Clamp to [0, 1]
-                if (interp < 0.0f) interp = 0.0f;
-                if (interp > 1.0f) interp = 1.0f;
-
-                // Blend colors smoothly
-                uint8_t fg_r = (win->fg_color >> 16) & 0xFF;
-                uint8_t fg_g = (win->fg_color >> 8) & 0xFF;
-                uint8_t fg_b = win->fg_color & 0xFF;
-
-                uint8_t bg_r = (win->bg_color >> 16) & 0xFF;
-                uint8_t bg_g = (win->bg_color >> 8) & 0xFF;
-                uint8_t bg_b = win->bg_color & 0xFF;
-                
-                interp = interp * (0.2f + 0.8f * interp);
-                // Smooth color interpolation
-                uint8_t out_r = (uint8_t)(bg_r + (fg_r - bg_r) * interp);
-                uint8_t out_g = (uint8_t)(bg_g + (fg_g - bg_g) * interp);
-                uint8_t out_b = (uint8_t)(bg_b + (fg_b - bg_b) * interp);
-
-                uint32_t color = (out_r << 16) | (out_g << 8) | out_b;
-                fb_putpixel(win->cursor_x + x, win->cursor_y + y, color);*/
+            if (fw == FONT8X16_WIDTH) {
+                const uint8_t (*font)[FONT8X16_WIDTH][FONT8X16_HEIGHT] =
+                    (const void *)fontinfo->data;
+                bit = font[(uint8_t)c - fontinfo->first][src_x][src_y];
+            } 
+            else if (fw == FONT16X32_WIDTH) {
+                const uint8_t (*font)[FONT16X32_WIDTH][FONT16X32_HEIGHT] =
+                    (const void *)fontinfo->data;
+                bit = font[(uint8_t)c - fontinfo->first][src_x][src_y];
+            } 
+            else {
+                const uint8_t (*font)[FONT32X64_WIDTH][FONT32X64_HEIGHT] =
+                    (const void *)fontinfo->data;
+                bit = font[(uint8_t)c - fontinfo->first][src_x][src_y];
             }
-        }
 
-
-        win->cursor_x += CHAR_W;
-        if (win->cursor_x + CHAR_W >= fb_width - margin) {
-            win->cursor_x = win->x+margin;
-            win->cursor_y += CHAR_H;
+            uint32_t color = bit ? win->fg_color : win->bg_color;
+            fb_putpixel(win->cursor_x + x, win->cursor_y + y, color);
         }
     }
 
-    // === handle scrolling ===
-    if (win->cursor_y + CHAR_H >= win->y+win->height - margin && win->cursor_y>=CHAR_H) {
-        for (uint32_t y = win->y; y < win->y+win->height - CHAR_H; y++) 
-            for (uint32_t x = win->x; x < win->x+win->width; x++) 
-                fb_addr[y*fb_width + x] = fb_addr[(y+CHAR_H)*fb_width + x];
-        for (uint32_t y = fb_height - CHAR_H; y < fb_height; y++) {
-            for (uint32_t x = win->x; x < win->x+win->width; x++) 
-                fb_addr[y*fb_width + x] = win->bg_color;
+    // Advance cursor
+    win->cursor_x += CHAR_W;
+    if (win->cursor_x + CHAR_W >= fb_width - margin) {
+        win->cursor_x = win->x + margin;
+        win->cursor_y += CHAR_H;
+    }
+
+    // Handle scrolling
+    if (win->cursor_y + CHAR_H >= win->y + win->height - margin && win->cursor_y >= CHAR_H) {
+        for (uint32_t y = win->y; y < win->y + win->height - CHAR_H; y++) {
+            for (uint32_t x = win->x; x < win->x + win->width; x++) {
+                fb_addr[y * fb_width + x] = fb_addr[(y + CHAR_H) * fb_width + x];
+            }
+        }
+
+        for (uint32_t y = win->y + win->height - CHAR_H; y < win->y + win->height; y++) {
+            for (uint32_t x = win->x; x < win->x + win->width; x++) {
+                fb_addr[y * fb_width + x] = win->bg_color;
+            }
         }
         win->cursor_y -= CHAR_H;
     }
 }
+
 
 
 void fb_removechar(Window* win) {

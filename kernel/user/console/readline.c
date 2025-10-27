@@ -9,7 +9,7 @@
 
 /* Keywords to highlight (green) */
 static const char* keywords[] = {
-    "help","ls","cd","cat","ps","clear","text",
+    "help","ls","cd","ps","clear","text",
     "app","kill","to","log","exit", "let", "read", "print"
 };
 #define NUM_KEYWORDS (sizeof(keywords)/sizeof(keywords[0]))
