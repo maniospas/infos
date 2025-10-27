@@ -1,0 +1,42 @@
+#include "../console.h"
+
+void poweroff(Window *win) {
+    fb_write_ansi(win, "\x1b[32mShutting down...\x1b[0m\n");
+    outw(0x604, 0x2000);
+    outw(0xB004, 0x2000);
+    for (;;) __asm__("hlt");
+}
+
+void console_prompt(Window* win) {
+    fb_write_ansi(win, "\x1b[33m");
+    fb_write(win, fat32_get_current_path());
+    fb_write(win, ": ");
+    fb_write_ansi(win, "\x1b[0m");
+}
+
+
+void widget_run(Application* app, int appid) {
+    if(!app->window || !app->window->width || !app->window->height)
+        return;
+    fb_clear(app->window);
+    fb_set_scale(app->window, 2, 1);
+    fb_window_border(app->window, app->data, 0x000000, appid);
+    fb_set_scale(app->window, 3, 2);
+    console_execute(app);
+    fb_put_char(app->window, '\n');
+}
+
+void widget_terminate(Application* app, int appid) {
+    if(!app->window || !app->window->width || !app->window->height)
+        return;
+    uint32_t prev = app->window->bg_color;
+    app->window->bg_color = 0;
+    app->window->y -= 40;
+    app->window->height += 80;
+    app->window->width += 40;
+    fb_clear(app->window);
+    app->window->y += 40;
+    app->window->height -= 80;
+    app->window->width -= 40;
+    app->window->bg_color = prev;
+}

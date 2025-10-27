@@ -15,7 +15,7 @@ LDFLAGS  := -T linker.ld -nostdlib -z max-page-size=0x1000 -z noexecstack -m elf
 
 # === Auto-detect all source files ===
 BOOT_SRC := $(wildcard boot/*.s)
-KERNEL_CSRC := $(wildcard kernel/**/*.c kernel/*.c)
+KERNEL_CSRC := $(wildcard kernel/**/**/*.c kernel/**/*.c kernel/*.c)
 KERNEL_SSRC := $(wildcard kernel/**/*.s kernel/*.s)
 OBJ := $(BOOT_SRC:.s=.o) $(KERNEL_CSRC:.c=.o) $(KERNEL_SSRC:.s=.o)
 
