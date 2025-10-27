@@ -38,7 +38,6 @@ void kernel_main(void) {
     fullscreen->cursor_y -= 20;
 
     // Initialize variables
-    char buffer[4096];
     size_t MAX_VARS = 128; 
     char* vars[MAX_VARS];
     for (uint32_t i = 0; i < MAX_VARS; i++)
@@ -50,8 +49,9 @@ void kernel_main(void) {
     for (uint32_t i = 0; i < MAX_APPLICATIONS; i++) {
         apps[i].MAX_VARS = MAX_VARS;
         apps[i].vars = vars;
-        app_init(&apps[i], NULL, NULL, 4096);
+        app_init(&apps[i], NULL, NULL);
     }
+    apps[0].window = fullscreen;
 
     // Initialize events
     keyboard_init();
@@ -102,9 +102,10 @@ void kernel_main(void) {
         // Run apps
         for (uint32_t i = 1; i < MAX_APPLICATIONS; i++) 
             app_run(&apps[i], i);
+        apps[0].data[0] = '\0';// always read data
         console_prompt(fullscreen);
-        console_readline(fullscreen, buffer, sizeof(buffer));
-        console_execute(fullscreen, buffer, vars, MAX_VARS);
+        console_readline(fullscreen, apps[0].data, APPLICATION_MESSAGE_SIZE);
+        console_execute(&apps[0]);
     }
 
 }

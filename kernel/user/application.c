@@ -1,12 +1,16 @@
 #include "application.h"
 
-void app_init(Application* app, void (*func)(Application*, int appid), Window* win, size_t data_size) {
+void app_init(Application* app, void (*func)(Application*, int appid), Window* win) {
     app->run = func;
-    app->data_size = data_size;
-    app->data = malloc(app->data_size);
+    app->input = malloc(APPLICATION_MESSAGE_SIZE);
+    app->output = malloc(APPLICATION_MESSAGE_SIZE);
+    app->data = malloc(APPLICATION_MESSAGE_SIZE);
     app->window = win;
     app->terminate = NULL;
     app->save = NULL;
+    app->output_state = 0;
+    app->input[0] = '\0';
+    app->output[0] = '\0';
 }
 
 void app_run(Application* app, int appid) {

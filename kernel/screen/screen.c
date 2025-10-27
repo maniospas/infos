@@ -174,7 +174,11 @@ void fb_put_char(Window* win, char c) {
     else {
         for (uint32_t y = 0; y < CHAR_H && y < win->y + win->height; y++) {
             for (uint32_t x = 0; x < CHAR_W && x < win->x + win->width; x++) {
-                float src_x = x * invscale;
+                uint32_t src_x = x * invscale;
+                uint32_t src_y = y * invscale;
+                uint32_t color = font32x64[c - FONT32X64_FIRST][src_x][src_y]?win->fg_color:win->bg_color;
+                fb_putpixel(win->cursor_x + x, win->cursor_y + y, color);
+                /*float src_x = x * invscale;
                 float src_y = y * invscale;
 
                 int x0 = (int)src_x;
@@ -220,7 +224,7 @@ void fb_put_char(Window* win, char c) {
                 uint8_t out_b = (uint8_t)(bg_b + (fg_b - bg_b) * interp);
 
                 uint32_t color = (out_r << 16) | (out_g << 8) | out_b;
-                fb_putpixel(win->cursor_x + x, win->cursor_y + y, color);
+                fb_putpixel(win->cursor_x + x, win->cursor_y + y, color);*/
             }
         }
 

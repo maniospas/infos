@@ -16,18 +16,28 @@ TERMINATION PROTOCOL
   any and all resources they consume (NOT their data).
 */
 
+/*
+COMMUNICATION PROTOCOL
+- Any app can listen to the output state of others.
+- Any app can receive requests on their message;
+*/
+
+#define APPLICATION_MESSAGE_SIZE 4096
+
 typedef struct Application {
     void (*run)(struct Application*, int appid);  // function pointer that receives itself
     int (*save)(struct Application*, int appid);  // a signal that we need to save data
     void (*terminate)(struct Application*, int appid);
-    void* data;                        // arbitrary data (4KB buffer)
-    uint32_t data_size;                // size of data buffer
+    char* data;                        // string data (ALWAYS NULL-TERMINATED)
+    char* input;                       // NULL or an malloced array of APPLICATION_MESSAGE_SIZE
+    char* output;                      // NULL or an malloced array of APPLICATION_MESSAGE_SIZE
     Window* window;                    // pointer to associated window
+    uint32_t output_state;
     char** vars;
     size_t MAX_VARS;
 } Application;
 
-void app_init(Application* app, void (*func)(Application*, int appid), Window* win, size_t data_size);
+void app_init(Application* app, void (*func)(Application*, int appid), Window* win);
 void app_run(Application* app, int appid);
 extern Application *apps;
 extern uint32_t MAX_APPLICATIONS;

@@ -1,14 +1,18 @@
 # python3 kernel/screen/font_generator.py kernel/screen/font.ttf 
 
+#!/usr/bin/env python3
 from PIL import Image, ImageFont, ImageDraw
 import sys, os
 
 FIRST, LAST = 32, 126
 SIZES = [
-    (8, 16, 16),   # width, height, font_size
-    (16, 32, 32),
     (32, 64, 62),
 ]
+
+# -------------- parameters you can tweak --------------
+THRESHOLD = 250      # 0–255: higher = thinner strokes, lower = bolder
+BASELINE_SCALE = 0.85
+# -------------------------------------------------------
 
 def generate_font_array(font_path):
     font_dir = os.path.dirname(os.path.abspath(font_path))
@@ -16,12 +20,12 @@ def generate_font_array(font_path):
 
     for CHAR_WIDTH, CHAR_HEIGHT, FONT_SIZE in SIZES:
         font = ImageFont.truetype(font_path, FONT_SIZE)
-        baseline_y = int(CHAR_HEIGHT * 0.85)  # 85% baseline works well across fonts
+        baseline_y = int(CHAR_HEIGHT * BASELINE_SCALE)
         out = []
 
         for code in range(FIRST, LAST + 1):
             c = chr(code)
-            img = Image.new("1", (CHAR_WIDTH, CHAR_HEIGHT), 0)
+            img = Image.new("L", (CHAR_WIDTH, CHAR_HEIGHT), 0)
             draw = ImageDraw.Draw(img)
 
             bbox = font.getbbox(c)
@@ -29,14 +33,16 @@ def generate_font_array(font_path):
                 out.append([[0] * CHAR_HEIGHT for _ in range(CHAR_WIDTH)])
                 continue
 
-            # Horizontal centering
             glyph_w = bbox[2] - bbox[0]
             x_offset = (CHAR_WIDTH - glyph_w) // 2 - bbox[0]
 
-            # Baseline alignment — just print at the baseline
-            draw.text((x_offset, baseline_y), c, font=font, fill=1, anchor="ls")
+            # Draw as grayscale
+            draw.text((x_offset, baseline_y), c, font=font, fill=255, anchor="ls")
 
-            glyph = [[img.getpixel((x, y)) for y in range(CHAR_HEIGHT)] for x in range(CHAR_WIDTH)]
+            # Convert grayscale → binary (remove antialias)
+            arr = img.load()
+            glyph = [[1 if arr[x, y] >= THRESHOLD else 0 for y in range(CHAR_HEIGHT)]
+                     for x in range(CHAR_WIDTH)]
             out.append(glyph)
 
         output_header = os.path.join(font_dir, f"{font_name}_font{CHAR_WIDTH}x{CHAR_HEIGHT}.h")
@@ -65,6 +71,6 @@ def generate_font_array(font_path):
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python3 font_to_header.py <fontfile.ttf>")
+        print("Usage: python3 font_generator.py <fontfile.ttf>")
         sys.exit(1)
     generate_font_array(sys.argv[1])

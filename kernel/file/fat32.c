@@ -162,9 +162,6 @@ void fat32_ls(Window* win, uint32_t dir_cluster) {
                 // Normal entry
                 char shortnm[13]; make_short_name_lower(e[i].Name, shortnm);
                 const char *disp = choose_name(lfn_buf, shortnm);
-                if(i)
-                    fb_write(win, "\n");
-                fb_write(win, "  ");
                 if (e[i].Attr & 0x10) fb_write_ansi(win, "\033[33m");
                 fb_write(win, disp);
                 if (e[i].Attr & 0x10) fb_write_ansi(win, "\033[0m");
@@ -174,6 +171,7 @@ void fat32_ls(Window* win, uint32_t dir_cluster) {
                     fb_write_dec(win, e[i].FileSize);
                     fb_write_ansi(win, " bytes\033[0m");
                 }
+                fb_write(win, "\n");
                 lfn_buf[0] = 0; // reset for next
             }
         }
@@ -322,6 +320,7 @@ void fat32_cat(Window* win, const char *filename) {
                 if (e[i].Name[0] == 0x00) {
                     fb_write_ansi(win, "\n\033[31m  ERROR\033[0m No such file: ");
                     fb_write(win, filename);
+                    fb_write(win, "\n");
                     return;
                 }
                 if (e[i].Name[0] == 0xE5) { lfn_buf[0] = 0; continue; }
@@ -349,7 +348,7 @@ void fat32_cat(Window* win, const char *filename) {
 
                     // Display with or without highlighting
                     if (!has_extension) {
-                        fb_write(win, "\n  ");
+                        fb_write(win, "\n");
                         char *ptr = (char *)file_buffer;
                         uint32_t i = 0;
                         while (i < size && i < bytes_read) {
@@ -365,7 +364,7 @@ void fat32_cat(Window* win, const char *filename) {
                                 if (i < size) {
                                     char c = ptr[i++];
                                     if(c=='\n')
-                                        fb_write(win, "\n  ");
+                                        fb_write(win, "\n");
                                     else
                                         fb_put_char(win, '\n');
                                 }
@@ -425,6 +424,7 @@ void fat32_cat(Window* win, const char *filename) {
                         for (uint32_t k = 0; k < bytes_read && k < size; k++)
                             fb_put_char(win, file_buffer[k]);
                     }
+                    fb_write(win, "\n");
                     return;
                 }
 
@@ -435,6 +435,7 @@ void fat32_cat(Window* win, const char *filename) {
     }
     fb_write_ansi(win, "\x1b[32mERROR\x1b[0m File not found: ");
     fb_write(win, filename);
+    fb_write(win, "\n");
 }
 
 
@@ -456,7 +457,7 @@ struct FAT32_Usage fat32_get_usage(void) {
     uint32_t cluster_bytes  = bpb.SecPerClus * bpb.BytsPerSec;
     uint64_t total_bytes = (uint64_t)total_clusters * cluster_bytes;
     uint64_t free_bytes  = (uint64_t)free_clusters * cluster_bytes;
-    uint64_t used_bytes  = (total_bytes > free_bytes) ? total_bytes - free_bytes : 0;
+    uint64_t used_bytes  = (total_bytes >= free_bytes) ? total_bytes - free_bytes : 0;
     struct FAT32_Usage u;
     u.total_mb = (uint32_t)(total_bytes / (1024ULL * 1024ULL));
     u.used_mb  = (uint32_t)(used_bytes  / (1024ULL * 1024ULL));

@@ -14,13 +14,14 @@ static void poweroff(Window *win) {
 }
 
 void console_prompt(Window* win) {
-    fb_write_ansi(win, "\n\x1b[33m");
+    fb_write_ansi(win, "\x1b[33m");
     fb_write(win, fat32_get_current_path());
     fb_write(win, ": ");
     fb_write_ansi(win, "\x1b[0m");
 }
 
-void console_readline(Window* win, char *buffer, size_t size) {
+int console_readline(Window* win, char *buffer, size_t size) {
+    if(*buffer) return 1;
     size_t pos = 0;
     for (;;) {
         unsigned char key = keyboard_read();
@@ -39,7 +40,7 @@ void console_readline(Window* win, char *buffer, size_t size) {
         if (c == '\n' || c == '\r') {
             buffer[pos] = '\0';
             fb_write(win, "\n");
-            return;
+            return 0;
         } 
         else if (c && pos < size - 1) {
             buffer[pos++] = c;
@@ -47,6 +48,7 @@ void console_readline(Window* win, char *buffer, size_t size) {
             fb_write(win, s);
         }
     }
+    return 0;
 }
 
 void widget_run(Application* app, int appid) {
@@ -56,7 +58,7 @@ void widget_run(Application* app, int appid) {
     fb_set_scale(app->window, 2, 1);
     fb_window_border(app->window, app->data, 0x000000, appid);
     fb_set_scale(app->window, 3, 2);
-    console_execute(app->window, app->data, app->vars, app->MAX_VARS);
+    console_execute(app);
     fb_put_char(app->window, '\n');
 }
 
@@ -137,7 +139,11 @@ static int find_var(const char* name) {
     return -1;
 }
 
-void console_execute(Window *win, const char *cmd, char** vars, size_t MAX_VARS) {
+void console_execute(Application *app) {
+    Window* win = app->window;
+    char** vars = app->vars;
+    size_t MAX_VARS = app->MAX_VARS;
+    const char *cmd = app->data;
     if (!strncmp(cmd, "let ", 4)) {
         const char* args = cmd + 4;
         while (*args == ' ') args++;
@@ -185,16 +191,18 @@ void console_execute(Window *win, const char *cmd, char** vars, size_t MAX_VARS)
         fb_write_ansi(win, "\x1b[32mOK\x1b[0m");
     }
     else if (!strcmp(cmd, "help")) {
-        fb_write_ansi(win, "  \033[32mhelp\033[0m   - Show this help\n");
-        fb_write_ansi(win, "  \033[32mls\033[0m     - List files in current directory\n");
-        fb_write_ansi(win, "  \033[32mcd\033[0m X   - Change directory (use /home for root)\n");
-        fb_write_ansi(win, "  \033[32mcat\033[0m X  - Print file contents\n");
-        fb_write_ansi(win, "  \033[32mps\033[0m     - Show memory & disk usage\n");
-        fb_write_ansi(win, "  \033[32mclear\033[0m  - Clear screen\n");
-        fb_write_ansi(win, "  \033[32mtext\033[0m X - Sets font X among big, small, default\n");
-        fb_write_ansi(win, "  \033[32mapp\033[0m X  - Keep running command X\n");
-        fb_write_ansi(win, "  \033[32mkill\033[0m X - Kills app #X (look at top right)\n");
-        fb_write_ansi(win, "  \033[32mexit\033[0m   - Shut down");
+        fb_write_ansi(win, "  \033[32mhelp\033[0m     - Show this help\n");
+        fb_write_ansi(win, "  \033[32mls\033[0m       - List files in current directory\n");
+        fb_write_ansi(win, "  \033[32mcd\033[0m X     - Change directory (use /home for root)\n");
+        fb_write_ansi(win, "  \033[32mcat\033[0m X    - Print file contents\n");
+        fb_write_ansi(win, "  \033[32mps\033[0m       - Show memory & disk usage\n");
+        fb_write_ansi(win, "  \033[32mclear\033[0m    - Clear screen\n");
+        fb_write_ansi(win, "  \033[32mtext\033[0m X   - Sets font X among big, small, default\n");
+        fb_write_ansi(win, "  \033[32mapp\033[0m X    - Keep running command X\n");
+        fb_write_ansi(win, "  \033[32mkill\033[0m X   - Kills app #X (look at top right)\n");
+        fb_write_ansi(win, "  \033[32msend X M\033[0m - Sends message M to app #X' input\n");
+        fb_write_ansi(win, "  \033[32mlogger\033[0m   - Accumulates inputs to an output buffer.\n");
+        fb_write_ansi(win, "  \033[32mexit\033[0m     - Shut down\n");
     }
     else if (!strcmp(cmd, "ps")) {
         uint64_t memory_size = memory_total_with_regions();
@@ -207,13 +215,12 @@ void console_execute(Window *win, const char *cmd, char** vars, size_t MAX_VARS)
         fb_write(win, "MB / ");
         fb_write_dec(win, (memory_size) / (1024 * 1024));
         fb_write(win, "MB\n");
-
         fb_write_ansi(win, "  \033[35mDisk\033[0m   ");
-        fb_bar(win, usage.used_mb, usage.total_mb, 50);
+        fb_bar(win, (long int )usage.used_mb, (long int )usage.total_mb, 50);
         fb_write_dec(win, usage.used_mb);
         fb_write(win, "MB / ");
         fb_write_dec(win, usage.total_mb);
-        fb_write(win, "MB");
+        fb_write(win, "MB\n");
     }
     else if (!strcmp(cmd, "ls")) 
         fat32_ls(win, fat32_get_current_dir());
@@ -251,7 +258,7 @@ void console_execute(Window *win, const char *cmd, char** vars, size_t MAX_VARS)
     }
     else if (!strcmp(cmd, "exit")) {
         int saved = 1;
-        for (int i = 0; i < MAX_APPLICATIONS; i++) 
+        for (uint32_t i = 0; i < MAX_APPLICATIONS; i++) 
             if(apps[i].save && !apps[i].save(&apps[i], i)) {
                 fb_write_ansi(win, "\033[35mWARN\033[0m App is busy: ");
                 fb_write(win, apps[i].data);
@@ -268,7 +275,7 @@ void console_execute(Window *win, const char *cmd, char** vars, size_t MAX_VARS)
                 fb_write_ansi(win, "\033[31mERROR\033[0m Cancelled by user");
         }
         if(saved) {
-            for (int i = 0; i < MAX_APPLICATIONS; i++) 
+            for (uint32_t i = 0; i < MAX_APPLICATIONS; i++) 
                 if(apps[i].terminate)
                     apps[i].terminate(&apps[i], i);
             poweroff(win);
@@ -281,7 +288,7 @@ void console_execute(Window *win, const char *cmd, char** vars, size_t MAX_VARS)
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing app ID. Example: kill 1");
             return;
         }
-        int id = 0;
+        uint32_t id = 0;
         const char* p = arg;
         while (*p >= '0' && *p <= '9') {
             id = id * 10 + (*p - '0');
@@ -291,7 +298,7 @@ void console_execute(Window *win, const char *cmd, char** vars, size_t MAX_VARS)
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m App #id should be a number. Example: kill 1");
             return;
         }
-        if (id < 0 || id >= MAX_APPLICATIONS) {
+        if (id >= MAX_APPLICATIONS) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m App does not exist with #id:");
             fb_write_dec(win, id);
             return;
@@ -328,15 +335,15 @@ void console_execute(Window *win, const char *cmd, char** vars, size_t MAX_VARS)
             apps[id].terminate = NULL;
             fb_write_ansi(win, "\x1b[32mOK\x1b[0m App killed, freeing up #id: ");
             fb_write_dec(win, id);
+            fb_write(win, "\n");
         }
         else 
-            fb_write_ansi(win, "\033[31mERROR\033[0m Cancelled by user");
+            fb_write_ansi(win, "\033[31mERROR\033[0m Cancelled by user.\n");
     }
-
     else if (!strncmp(cmd, "app ", 4)) {
         const char *arg = cmd + 4;
         // Find first free widget slot
-        for (int i = 1; i < MAX_APPLICATIONS; i++) {
+        for (uint32_t i = 1; i < MAX_APPLICATIONS; i++) {
             if (!apps[i].run) {
                 apps[i].window = malloc(sizeof(Window));
                 init_fullscreen(apps[i].window);
@@ -345,14 +352,17 @@ void console_execute(Window *win, const char *cmd, char** vars, size_t MAX_VARS)
                 apps[i].vars = vars;
                 apps[i].MAX_VARS = MAX_VARS;
                 if(!apps[i].window) {
-                    fb_write_ansi(win, "\033[31mERROR\033[0m Not enough memory to start application.");
+                    fb_write_ansi(win, "\033[31mERROR\033[0m Not enough memory to start application.\n");
                     return;
                 }
                 apps[i].run = widget_run;
                 apps[i].save = NULL;
                 apps[i].terminate = widget_terminate;
+                apps[i].input[0] = '\0';
+                apps[i].output[0] = '\0';
+                apps[i].output_state = 0;
                 size_t pos = 0;
-                while(*arg && pos<apps[i].data_size) {
+                while(*arg && pos<APPLICATION_MESSAGE_SIZE-1) {
                     ((char*)apps[i].data)[pos] = *arg;
                     arg++;
                     pos++;
@@ -360,10 +370,95 @@ void console_execute(Window *win, const char *cmd, char** vars, size_t MAX_VARS)
                 ((char*)apps[i].data)[pos] = 0;
                 fb_write_ansi(win, "\033[32mOK\033[0m App created with #id: ");
                 fb_write_dec(win, i);
+                fb_write(win, "\n");
                 return;
             }
         }
-        fb_write_ansi(win, "\033[31mERROR\033[0m No free app slots available.");
+        fb_write_ansi(win, "\033[31mERROR\033[0m No free app slots available.\n");
+    }
+    else if (!strncmp(cmd, "send ", 5)) {
+        char *arg = cmd + 5;
+        while (*arg == ' ') arg++;
+        if (!*arg) {
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing app #id. Type \033[32mhelp\033[0m for help.\n");
+            return;
+        }
+        uint32_t id = 0;
+        char* p = arg;
+        while (*p >= '0' && *p <= '9') {
+            id = id * 10 + (*p - '0');
+            p++;
+        }
+        if (p == arg || (*p && *p != ' ')) {
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Invalid app #id. It must be a number. Example: send 1 hello\n");
+            return;
+        }
+
+        while (*p == ' ') p++;
+        if (id && (id >= MAX_APPLICATIONS || !apps[id].run)) {
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m No active app with #id: ");
+            fb_write_dec(win, id);
+            fb_write(win, "\n");
+            return;
+        }
+        if (!*p) {
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing message to send. Type \033[32mhelp\033[0m for help.\n");
+            return;
+        }
+        size_t len = strlen(p);
+        if (len >= APPLICATION_MESSAGE_SIZE)
+            len = APPLICATION_MESSAGE_SIZE - 1;
+        memcpy(apps[id].input, p, len);
+        apps[id].input[len] = '\0';
+        fb_write_ansi(win, "\x1b[32mOK\x1b[0m Message sent to app #");
+        fb_write_dec(win, id);
+        fb_write(win, "\n");
+    }
+    else if (!strcmp(cmd, "logger")) {
+        char *out = app->output;
+        size_t pos = app->output_state;
+        const char *in = app->input;
+        size_t in_len = strlen(in);
+        if(in_len) {
+            const size_t limit = APPLICATION_MESSAGE_SIZE;
+            if (pos == 0 && out[0] == '\0')
+                pos = 0;
+            else if (out[pos] != '\0')
+                out[pos] = '\0';
+            size_t needed = in_len + 2;
+            if (pos + needed >= limit) {
+                size_t shift = 0;
+                size_t new_start = 0;
+                while (new_start < pos && (pos - new_start + needed >= limit)) {
+                    if (out[new_start] == '\n')
+                        shift = new_start + 1; // cut after this newline
+                    new_start++;
+                }
+                if (shift > 0 && shift < pos) {
+                    size_t remain = pos - shift;
+                    for (size_t i = 0; i < remain; i++)
+                        out[i] = out[i + shift];
+                    pos = remain;
+                    out[pos] = '\0';
+                } else {
+                    pos = 0;
+                    out[0] = '\0';
+                }
+            }
+            for (size_t i = 0; i < in_len && pos < limit - 2; i++)
+                out[pos++] = in[i];
+            if (pos < limit - 1)
+                out[pos++] = '\n';
+            out[pos] = '\0';
+            app->output_state = pos;
+            app->input[0] = '\0';
+            fb_write(win, out);
+            fb_write_ansi(win, "\x1b[32mOK\x1b[0m Received new input!\n");
+        }
+        else {
+            fb_write(win, out);
+            fb_write_ansi(win, "\x1b[33mWAITS:\x1b[0m For input from \x1b[32msend\x1b[0m.\n");
+        }
     }
     // else 
     //     fb_write_ansi(win, "\n  \033[31mERROR\033[0m Unknown command. Type \033[32mhelp\033[0m for help.\n");
@@ -371,7 +466,7 @@ void console_execute(Window *win, const char *cmd, char** vars, size_t MAX_VARS)
         const char* name = cmd;
         while (*name == ' ') name++;
         if (!*name) {
-            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing variable name.");
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing variable name. Type \033[32mhelp\033[0m for help.\n");
             return;
         }
         char varname[64];
@@ -383,6 +478,7 @@ void console_execute(Window *win, const char *cmd, char** vars, size_t MAX_VARS)
         if (idx < 0 || !var_table[idx].value) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Not yet set: ");
             fb_write(win, varname);
+            fb_write_ansi(win, ". Type \033[32mhelp\033[0m for help.\n");
             return;
         }
         fb_write(win, var_table[idx].value);
