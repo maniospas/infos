@@ -21,31 +21,53 @@ static size_t console_run_subcommand(Application *app, const char *subcmd, char 
     return len;
 }
 
-// Preprocesses parentheses inside app->data before running
 void console_preprocess(Application *app) {
     const char *src = app->data;
     char processed[APPLICATION_MESSAGE_SIZE];
     size_t pos = 0;
+    int bracket_depth = 0;
     while (*src && pos < APPLICATION_MESSAGE_SIZE - 1) {
-        if (*src == '(') {
-            src++; // skip '('
+
+        // --- track brackets ---
+        if (*src == '{') {
+            bracket_depth++;
+            src++; 
+            //processed[pos++] = *src++;
+            continue;
+        } else if (*src == '}') {
+            bracket_depth--;
+            src++; 
+            //processed[pos++] = *src++;
+            continue;
+        }
+
+        if (!bracket_depth && (*src == '(' || *src == '|')) {
+            char type = *src;
+            src++; // skip '(' or '|'
+
+            // consume spaces after operator
+            while (*src == ' ') src++;
+
             const char *start = src;
-            int depth = 1;
-            // find matching ')'
-            while (*src && depth > 0) {
-                if (*src == '(')
-                    depth++;
-                else if (*src == ')')
-                    depth--;
-                if (depth > 0)
-                    src++;
+            int depth = (type == '(');
+
+            // find end of subcommand
+            while (*src && ((type == '(' && depth > 0) || (type == '|' && *src != '\n' && *src != '\r'))) {
+                if (type == '(') {
+                    if (*src == '(') depth++;
+                    else if (*src == ')') depth--;
+                    if (depth == 0) break;
+                }
+                src++;
             }
-            if (depth != 0) {
+
+            if (type == '(' && depth != 0) {
                 fb_write_ansi(app->window, "\x1b[31mERROR\x1b[0m Unmatched '('.\n");
                 return;
             }
-            // extract inner command
-            size_t inner_len = src - start;
+
+            // extract subcommand text
+            size_t inner_len = (type == '(') ? (src - start) : (src - start);
             char inner[APPLICATION_MESSAGE_SIZE];
             size_t i = 0;
             while (i < inner_len && i < APPLICATION_MESSAGE_SIZE - 1) {
@@ -53,31 +75,58 @@ void console_preprocess(Application *app) {
                 i++;
             }
             inner[i] = 0;
-            // Run the subcommand
+
+            // execute subcommand
             char subout[APPLICATION_MESSAGE_SIZE];
             size_t out_len = console_run_subcommand(app, inner, subout, APPLICATION_MESSAGE_SIZE);
-            // Append result
-            for (size_t j = 0; j < out_len && pos < APPLICATION_MESSAGE_SIZE - 1; j++) 
+
+            // insert space if previous character isn't whitespace
+            if (pos > 0 && processed[pos - 1] != ' ' && pos < APPLICATION_MESSAGE_SIZE - 1)
+                processed[pos++] = ' ';
+
+            // append result
+            for (size_t j = 0; j < out_len && pos < APPLICATION_MESSAGE_SIZE - 1; j++)
                 processed[pos++] = subout[j];
-            src++; // skip ')'
-        } 
-        else 
-            processed[pos++] = *src++;
+
+            // skip ')' if present
+            if (type == '(' && *src == ')') src++;
+
+            // consume spaces after subcommand
+            while (*src == ' ') src++;
+
+            // also add one space separator if next char isn't whitespace or end
+            if (*src && *src != ' ' && pos < APPLICATION_MESSAGE_SIZE - 1)
+                processed[pos++] = ' ';
+
+            continue;
+        }
+
+        // skip spaces before pipe
+        if (*src == ' ') {
+            const char *peek = src + 1;
+            while (*peek == ' ') peek++;
+            if (*peek == '|') {
+                src = peek;
+                continue;
+            }
+        }
+
+        processed[pos++] = *src++;
     }
 
     processed[pos] = 0;
 
-    // Replace app->data with preprocessed version
-    {
-        char *dst = (char*)app->data;
-        size_t i = 0;
-        while (processed[i] && i < APPLICATION_MESSAGE_SIZE - 1) {
-            dst[i] = processed[i];
-            i++;
-        }
-        dst[i] = 0;
+    // copy back
+    char *dst = (char*)app->data;
+    size_t i = 0;
+    while (processed[i] && i < APPLICATION_MESSAGE_SIZE - 1) {
+        dst[i] = processed[i];
+        i++;
     }
+    dst[i] = 0;
 }
+
+
 
 void console_execute(Application *app) {
     char processed[APPLICATION_MESSAGE_SIZE];
@@ -109,7 +158,7 @@ void console_execute_overwrite(Application *app) {
         while (*args && *args != ' ') args++;
         size_t name_len = args - name_start;
         if (name_len == 0) {
-            fb_write_ansi(win, "\n\x1b[31mERROR\x1b[0m Missing variable name.\n");
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing variable name. Type \033[32mhelp\033[0m for help.\n");
             return;
         }
 
@@ -123,14 +172,14 @@ void console_execute_overwrite(Application *app) {
         varname[i] = 0;
         while (*args == ' ') args++;
         if (!*args) {
-            fb_write_ansi(win, "\n\x1b[31mERROR\x1b[0m Missing value.\n");
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing value. Type \033[32mhelp\033[0m for help.\n");
             return;
         }
 
         // Find or insert variable
         int idx = find_or_insert_var(varname);
         if (idx < 0) {
-            fb_write_ansi(win, "\n\x1b[31mERROR\x1b[0m Variable table full.\n");
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Variable table full.\n");
             return;
         }
 
@@ -144,8 +193,10 @@ void console_execute_overwrite(Application *app) {
             free(var_table[idx].value);
 
         var_table[idx].value = new_val;
-        fb_write_ansi(win, "\x1b[32mOK\x1b[0m Set value for variable: ");
+        fb_write_ansi(win, "\x1b[32mOK\x1b[0m Set value ");
         fb_write(win, varname);
+        fb_write(win, ": ");
+        fb_write(win, new_val);
         fb_write(win, "\n");
     }
     else if (!strcmp(cmd, "help")) {
@@ -157,8 +208,9 @@ void console_execute_overwrite(Application *app) {
         fb_write_ansi(win, "  \033[32mclear\033[0m    - Clear screen\n");
         fb_write_ansi(win, "  \033[32mtext\033[0m X   - Sets font X among big, small, default\n");
         fb_write_ansi(win, "  \033[32mapp\033[0m X    - Keep running command X\n");
-        fb_write_ansi(win, "  \033[32mkill\033[0m X   - Kills app #X (look at top right)\n");
-        fb_write_ansi(win, "  \033[32msend X M\033[0m - Sends message M to app #X' input\n");
+        fb_write_ansi(win, "  \033[32mkill\033[0m X   - Kills app X (look at top right)\n");
+        fb_write_ansi(win, "  \033[32mto\033[0m X V   - Sends message V to app X's input\n");
+        fb_write_ansi(win, "  \033[32mlet\033[0m  X V - Sets value V to variable with name X\n");
         fb_write_ansi(win, "  \033[32mlog\033[0m      - Accumulates and prints inputs.\n");
         fb_write_ansi(win, "  \033[32mexit\033[0m     - Shut down\n");
     }
@@ -243,7 +295,7 @@ void console_execute_overwrite(Application *app) {
         const char *arg = cmd + 5;
         while (*arg == ' ') arg++;
         if (!*arg) {
-            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing app ID. Example: kill 1");
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing app ID. Example: kill 1\n");
             return;
         }
         uint32_t id = 0;
@@ -253,7 +305,7 @@ void console_execute_overwrite(Application *app) {
             p++;
         }
         if(*p) {
-            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m App #id should be a number. Example: kill 1");
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m App #id should be a number. Example: kill 1\n");
             return;
         }
         if (id >= MAX_APPLICATIONS) {
@@ -349,8 +401,8 @@ void console_execute_overwrite(Application *app) {
         }
         fb_write_ansi(win, "\033[31mERROR\033[0m No free app slots available.\n");
     }
-    else if (!strncmp(cmd, "send ", 5)) {
-        const char *arg = cmd + 5;
+    else if (!strncmp(cmd, "to ", 3)) {
+        const char *arg = cmd + 3;
         while (*arg == ' ') arg++;
         if (!*arg) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing app #id. Type \033[32mhelp\033[0m for help.\n");
@@ -363,7 +415,7 @@ void console_execute_overwrite(Application *app) {
             p++;
         }
         if (p == arg || (*p && *p != ' ')) {
-            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Invalid app #id. It must be a number. Example: send 1 hello\n");
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Invalid app #id. It must be a number. Example: to 1 hello\n");
             return;
         }
 
@@ -387,6 +439,43 @@ void console_execute_overwrite(Application *app) {
         fb_write_dec(win, id);
         fb_write(win, "\n");
     }
+    else if (!strncmp(cmd, "read ", 5)) {
+        const char *path = cmd + 5;
+        while (*path == ' ') path++;
+        if (!*path) {
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing path. Example: read /home\n");
+            return;
+        }
+        int res = fat32_read(app->output, APPLICATION_MESSAGE_SIZE, 0, path);
+        if (res == 0) {
+            fb_write_ansi(win, "\x1b[32mOK\x1b[0m Read path contents: ");
+            fb_write(win, path);
+            fb_write(win, "\n");
+        } else if (res == 1) {
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Path contents too long: ");
+            fb_write(win, path);
+            fb_write(win, "\n");
+        } else if (res == 2) {
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Path not found: ");
+            fb_write(win, path);
+            fb_write(win, "\n");
+        } else {
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Unknown error for path: ");
+            fb_write(win, path);
+            fb_write(win, "\n");
+        }
+    }
+    else if (!strncmp(cmd, "print ", 6)) {
+        const char *val = cmd + 6;
+        while (*val == ' ') val++;
+        if (!*val) {
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing value. Example: print hello\n");
+            return;
+        }
+        fb_write_ansi(win, val);
+        fb_write(win, "\n");
+    }
+
     else if (!strcmp(cmd, "log")) {
         char *out = app->output;
         size_t pos = app->output_state;
@@ -430,7 +519,7 @@ void console_execute_overwrite(Application *app) {
         }
         else {
             fb_write(win, out);
-            fb_write_ansi(win, "\x1b[33mWAITING\x1b[0m for sent data.\n");
+            fb_write_ansi(win, "\x1b[33mWAITING\x1b[0m for message.\n");
         }
     }
     // else 
@@ -469,8 +558,10 @@ void console_execute_overwrite(Application *app) {
         app->output_state = pos;
 
         // --- Also print it to screen ---
+        fb_write_ansi(win, "\x1b[32mOK\x1b[0m Got value ");
+        fb_write(win, varname);
+        fb_write(win, ": ");
         fb_write(win, val);
         fb_write(win, "\n");
     }
-
 }

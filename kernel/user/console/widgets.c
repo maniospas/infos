@@ -20,7 +20,7 @@ void widget_run(Application* app, int appid) {
         return;
     fb_clear(app->window);
     fb_set_scale(app->window, 2, 1);
-    fb_window_border(app->window, app->data, 0x000000, appid);
+    fb_window_border(app->window, " ", 0x000000, appid);
     fb_set_scale(app->window, 3, 2);
     console_execute(app);
     fb_put_char(app->window, '\n');

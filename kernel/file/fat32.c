@@ -469,3 +469,138 @@ struct FAT32_Usage fat32_get_usage(void) {
 // -----------------------------------------------------------------------------
 uint32_t fat32_get_current_dir(void) { return current_dir_cluster; }
 void     fat32_set_current_dir(uint32_t cluster) { current_dir_cluster = cluster; }
+
+int fat32_read(char* buf, size_t bufsize, size_t start_page, const char* path) {
+    uint32_t cluster = bpb.RootClus;
+    char segment[64];
+    int seg_i = 0;
+    int reading_file = 0;
+
+    if (!path || !path[0]) return 2;
+
+    // Handle special base paths
+    if (!strcmp(path, "/home") || !strcmp(path, "/"))
+        cluster = bpb.RootClus;
+    else if (str_starts_with(path, "/home/"))
+        path += 6;
+    else if (path[0] == '/')
+        path++;
+
+    // ---- Parse path segments ----
+    for (int i = 0;; i++) {
+        char c = path[i];
+        if (c == '/' || c == '\0') {
+            segment[seg_i] = 0;
+            if (seg_i > 0) {
+                // Handle '.' (current dir) and '..' (parent dir)
+                if (!strcmp(segment, ".")) {
+                    seg_i = 0;
+                    if (c == '\0') break;
+                    continue;
+                } else if (!strcmp(segment, "..")) {
+                    // TODO: handle parent dir tracking if implemented
+                    seg_i = 0;
+                    if (c == '\0') break;
+                    continue;
+                }
+
+                uint8_t sb[512];
+                int eps = bpb.BytsPerSec / sizeof(struct FAT32_DirEntry);
+                uint32_t found_cluster = 0;
+                uint32_t scan = cluster;
+
+                while (scan && !found_cluster) {
+                    uint32_t lba = cluster_to_lba(scan);
+                    for (int s = 0; s < bpb.SecPerClus && !found_cluster; s++) {
+                        ata_read_sector(lba + s, sb);
+                        struct FAT32_DirEntry* e = (struct FAT32_DirEntry*)sb;
+                        char lfn_buf[256]; lfn_buf[0] = 0;
+
+                        for (int k = 0; k < eps; k++) {
+                            if (e[k].Name[0] == 0x00) break;
+                            if (e[k].Name[0] == 0xE5) { lfn_buf[0] = 0; continue; }
+                            if (e[k].Attr == 0x0F) {
+                                const struct FAT32_LFN_Entry* lfn = (const struct FAT32_LFN_Entry*)&e[k];
+                                lfn_prepend_piece(lfn_buf, lfn, sizeof(lfn_buf));
+                                continue;
+                            }
+
+                            char shortnm[13]; make_short_name_lower(e[k].Name, shortnm);
+                            const char* cand = choose_name(lfn_buf, shortnm);
+
+                            if (!strcasecmp(cand, segment)) {
+                                found_cluster = (e[k].FstClusHI << 16) | e[k].FstClusLO;
+                                reading_file = !(e[k].Attr & 0x10);
+                                break;
+                            }
+                            lfn_buf[0] = 0;
+                        }
+                    }
+                    if (!found_cluster) scan = get_next_cluster(scan);
+                }
+
+                if (!found_cluster) return 2; // path not found
+                cluster = found_cluster;
+            }
+            seg_i = 0;
+            if (c == '\0') break;
+        } else if (seg_i < 63) {
+            segment[seg_i++] = c;
+        }
+    }
+
+    // ---- Read directory or file ----
+    uint8_t sector_buf[512];
+    int eps = bpb.BytsPerSec / sizeof(struct FAT32_DirEntry);
+    size_t pos = 0, page = 0;
+
+    if (!reading_file) {
+        while (cluster != 0) {
+            uint32_t lba = cluster_to_lba(cluster);
+            for (int s = 0; s < bpb.SecPerClus; s++) {
+                if (page++ < start_page) continue;
+                ata_read_sector(lba + s, sector_buf);
+                struct FAT32_DirEntry* e = (struct FAT32_DirEntry*)sector_buf;
+                char lfn_buf[256]; lfn_buf[0] = 0;
+
+                for (int i = 0; i < eps; i++) {
+                    if (e[i].Name[0] == 0x00) { buf[pos] = 0; return 0; }
+                    if (e[i].Name[0] == 0xE5) { lfn_buf[0] = 0; continue; }
+                    if (e[i].Attr == 0x0F) {
+                        const struct FAT32_LFN_Entry* lfn = (const struct FAT32_LFN_Entry*)&e[i];
+                        lfn_prepend_piece(lfn_buf, lfn, sizeof(lfn_buf));
+                        continue;
+                    }
+
+                    char shortnm[13]; make_short_name_lower(e[i].Name, shortnm);
+                    const char* name = choose_name(lfn_buf, shortnm);
+
+                    for (int j = 0; name[j]; j++) {
+                        if (pos >= bufsize - 2) return 1; // too long
+                        buf[pos++] = name[j];
+                    }
+                    buf[pos++] = '\n';
+                    if (pos >= bufsize - 1) return 1;
+                    lfn_buf[0] = 0;
+                }
+            }
+            cluster = get_next_cluster(cluster);
+        }
+        buf[pos] = 0;
+        return 0;
+    } else {
+        uint32_t fclus = cluster;
+        uint32_t bytes_read = 0;
+        while (fclus && pos < bufsize) {
+            uint32_t sec_lba = cluster_to_lba(fclus);
+            for (int s = 0; s < bpb.SecPerClus; s++) {
+                if (pos + 512 >= bufsize) return 1;
+                ata_read_sector(sec_lba + s, (uint8_t*)buf + pos);
+                pos += bpb.BytsPerSec;
+            }
+            fclus = get_next_cluster(fclus);
+        }
+        buf[(pos < bufsize) ? pos : bufsize - 1] = 0;
+        return 0;
+    }
+}

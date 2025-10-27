@@ -67,3 +67,4 @@ struct FAT32_Usage fat32_get_usage(void);
 uint32_t fat32_get_current_dir(void);
 void fat32_set_current_dir(uint32_t cluster);
 const char *fat32_get_current_path(void);
+int fat32_read(char*buf,size_t bufsize,size_t start_page,const char*path);
