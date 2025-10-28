@@ -4,7 +4,7 @@
 
 LetOS (pronounced *lettuce*) is a lightweight operating system featuring a keyboard-driven windowed interface and persistent processes. It uses minimal resources, though it uses GRUB as a bootloader that requires 6MB of RAM and consumes 12 MB of disk space.
 
-**License:** Apache2.0 - see LICENSE.txt<br>
+**License:** Apache 2.0 - see [LICENSE.txt](LICENSE.txt)<br>
 **Maintainer:** Emmanouil Krasanakis (maniospas@hotmail.com)
 
 ## 💿 Running the ISO
@@ -30,13 +30,21 @@ The OS supports persistent processes, so programs can remain active even when yo
 At the core of the environment is the integrated Lettuce Console, which acts as both a shell and a programming environment.
 From this console, you can start processes, send commands, and write or execute Lettuce scripts directly.
 
-## 🥬 The Lettuce Language
+## 🥬 The lettuce language
 
-Lettuce is a small, interpreted programming language built directly into letOS.
-It enables interactive programming and system control from within the console.
-Programs can manipulate data, draw to the screen, and interact with running processes.
+Lettuce is a small, interpreted programming language built directly into letOS. In a sense, the operating system *is* the language and conversely.
 
-Lettuce serves as both the user shell and the scripting layer for automating system behavior.
+It enables interactive programming and system control from within the console. Programs can manipulate data, draw to the screen, and interact with running processes.
+
+Type *help* and enter in the main terminal to see the language's basic constructs and usage rules. Mainly, command take the form of a name followed by space-separated arguments like so: `let a 1` to set the text *"1"* to a variable *a*. Commands output values, so enclose them in parentheses to make such evaluation. For example, `print (a)` evaluates *a* and transforms this to `print 1`, eventually printing the value to the console. You can use the `|` operator as basically an open parenthesis that ends at end of line. Brackets are used to prevent one evaluation.
+
+Below is an example, where *app* is used to create an application handle and *args* listens to the input stream of the application to re-run it based on inputs. App and file commands create a handle string that can be used. The second command opens a file and sends the file handle to the application handle.
+
+```rust
+let myapp|app {image|args}
+to (myapp) (file logo.bmp)
+```
+
 
 ## 🪛 Toolchain
 
