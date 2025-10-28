@@ -23,74 +23,83 @@ static size_t console_run_subcommand(Application *app, const char *subcmd, char 
     }
     return len;
 }
-
 int console_preprocess(Application *app) {
     const char *src = app->data;
-    char* processed = malloc(APPLICATION_MESSAGE_SIZE);
-    if(!processed) 
+    char *processed = malloc(APPLICATION_MESSAGE_SIZE);
+    if (!processed)
         return CONSOLE_EXECUTE_OOM;
+
     memset(processed, 0, APPLICATION_MESSAGE_SIZE);
     size_t pos = 0;
     int bracket_depth = 0;
+
     while (*src && pos < APPLICATION_MESSAGE_SIZE - 1) {
 
-        // --- track brackets ---
+        // --- track braces for blocks ---
         if (*src == '{') {
-            if(bracket_depth==1)
+            if (bracket_depth == 1)
                 processed[pos++] = *src++;
-            else 
-                src++; 
+            else
+                src++;
             bracket_depth++;
             continue;
         } else if (*src == '}') {
-            if(bracket_depth==2)
+            if (bracket_depth == 2)
                 processed[pos++] = *src++;
-            else 
-                src++; 
+            else
+                src++;
             bracket_depth--;
             continue;
         }
 
-        if (!bracket_depth && (*src == '(' || *src == '|')) {
-            char type = *src;
-            src++; // skip '(' or '|'
+        // --- subcommand evaluation ---
+        if (!bracket_depth && *src == '(') {
+            const char *sub_start = src;  // remember where '(' started
+            src++; // skip '('
 
-            // consume spaces after operator
+            // skip spaces after '('
             while (*src == ' ') src++;
 
-            const char *start = src;
-            int depth = (type == '(');
+            const char *inner_start = src;
+            int depth = 1;
 
-            // find end of subcommand
-            while (*src && ((type == '(' && depth > 0) || (type == '|' && *src != '\n' && *src != '\r'))) {
-                if (type == '(') {
-                    if (*src == '(') depth++;
-                    else if (*src == ')') depth--;
-                    if (depth == 0) break;
-                }
+            // find matching ')'
+            while (*src && depth > 0) {
+                if (*src == '(')
+                    depth++;
+                else if (*src == ')')
+                    depth--;
+                if (depth == 0)
+                    break;
                 src++;
             }
 
-            if (type == '(' && depth != 0) {
+            if (depth != 0) {
                 fb_write_ansi(app->window, "\x1b[31mERROR\x1b[0m Unmatched '('.\n");
+                free(processed);
                 return CONSOLE_EXECUTE_RUNTIME_ERROR;
             }
 
-            // extract subcommand text
-            size_t inner_len = (type == '(') ? (src - start) : (src - start);
-            char inner[APPLICATION_MESSAGE_SIZE];
-            size_t i = 0;
-            while (i < inner_len && i < APPLICATION_MESSAGE_SIZE - 1) {
-                inner[i] = start[i];
-                i++;
-            }
-            inner[i] = 0;
+            const char *inner_end = src;
+            size_t inner_len = inner_end - inner_start;
+            if (inner_len >= APPLICATION_MESSAGE_SIZE)
+                inner_len = APPLICATION_MESSAGE_SIZE - 1;
 
-            // execute subcommand
+            char inner[APPLICATION_MESSAGE_SIZE];
+            memcpy(inner, inner_start, inner_len);
+            inner[inner_len] = 0;
+
+            // run the subcommand
             char subout[APPLICATION_MESSAGE_SIZE];
             size_t out_len = console_run_subcommand(app, inner, subout, APPLICATION_MESSAGE_SIZE);
 
-            // insert space if previous character isn't whitespace
+            if (out_len == 0) {
+                // empty output: skip entire (...) block
+                src = inner_end + 1; // move past ')'
+                continue;
+            }
+
+            // add space if needed
             if (pos > 0 && processed[pos - 1] != ' ' && pos < APPLICATION_MESSAGE_SIZE - 1)
                 processed[pos++] = ' ';
 
@@ -98,20 +107,53 @@ int console_preprocess(Application *app) {
             for (size_t j = 0; j < out_len && pos < APPLICATION_MESSAGE_SIZE - 1; j++)
                 processed[pos++] = subout[j];
 
-            // skip ')' if present
-            if (type == '(' && *src == ')') src++;
+            src++; // move past ')'
 
-            // consume spaces after subcommand
+            // skip spaces after subcommand
             while (*src == ' ') src++;
 
-            // also add one space separator if next char isn't whitespace or end
+            // optional space separator if next char isn't whitespace
             if (*src && *src != ' ' && pos < APPLICATION_MESSAGE_SIZE - 1)
                 processed[pos++] = ' ';
 
             continue;
         }
 
-        // skip spaces before pipe
+        // --- handle '|' inline commands (non-bracket subcommands) ---
+        if (!bracket_depth && *src == '|') {
+            src++; // skip '|'
+
+            // consume leading spaces
+            while (*src == ' ') src++;
+            const char *start = src;
+
+            while (*src && *src != '\n' && *src != '\r')
+                src++;
+
+            size_t inner_len = src - start;
+            if (inner_len >= APPLICATION_MESSAGE_SIZE)
+                inner_len = APPLICATION_MESSAGE_SIZE - 1;
+
+            char inner[APPLICATION_MESSAGE_SIZE];
+            memcpy(inner, start, inner_len);
+            inner[inner_len] = 0;
+
+            char subout[APPLICATION_MESSAGE_SIZE];
+            size_t out_len = console_run_subcommand(app, inner, subout, APPLICATION_MESSAGE_SIZE);
+
+            if (out_len > 0 && pos > 0 && processed[pos - 1] != ' ' && pos < APPLICATION_MESSAGE_SIZE - 1)
+                processed[pos++] = ' ';
+
+            for (size_t j = 0; j < out_len && pos < APPLICATION_MESSAGE_SIZE - 1; j++)
+                processed[pos++] = subout[j];
+
+            if (*src && pos < APPLICATION_MESSAGE_SIZE - 1)
+                processed[pos++] = ' ';
+
+            continue;
+        }
+
+        // --- skip redundant spaces before pipe ---
         if (*src == ' ') {
             const char *peek = src + 1;
             while (*peek == ' ') peek++;
@@ -121,13 +163,14 @@ int console_preprocess(Application *app) {
             }
         }
 
+        // --- normal character ---
         processed[pos++] = *src++;
     }
 
     processed[pos] = 0;
 
-    // copy back
-    char *dst = (char*)app->data;
+    // copy result back
+    char *dst = (char *)app->data;
     size_t i = 0;
     while (processed[i] && i < APPLICATION_MESSAGE_SIZE - 1) {
         dst[i] = processed[i];
@@ -138,6 +181,7 @@ int console_preprocess(Application *app) {
     free(processed);
     return CONSOLE_EXECUTE_OK;
 }
+
 
 
 
@@ -637,13 +681,10 @@ int console_execute_overwrite(Application *app) {
     }
     else if (!strncmp(cmd, "print ", 6)) {
         const char *val = cmd + 6;
-        while (*val == ' ') val++;
-        if (!*val) {
-            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing value. Example: print hello\n");
-            return CONSOLE_EXECUTE_RUNTIME_ERROR;
-        }
-        fb_write_ansi(win, val);
-        fb_write(win, "\n");
+        while (*val == ' ' && val<APPLICATION_MESSAGE_SIZE) val++;
+        if (*val) 
+            fb_write_ansi(win, val);
+        fb_write(win, " \n");
     }
     else if (!strcmp(cmd, "args")) {
         const char *in = app->input;
