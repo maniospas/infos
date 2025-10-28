@@ -33,11 +33,11 @@ struct FAT32_LFN_Entry {
 // -----------------------------------------------------------------------------
 // Disk/FAT helpers
 // -----------------------------------------------------------------------------
-static uint32_t cluster_to_lba(uint32_t cluster) {
+static inline uint32_t cluster_to_lba(uint32_t cluster) {
     return first_data_sector + ((cluster - 2) * bpb.SecPerClus);
 }
 
-static uint32_t get_next_cluster(uint32_t cluster) {
+static inline int32_t get_next_cluster(uint32_t cluster) {
     uint32_t fat_offset = cluster * 4;
     uint32_t fat_sector = fat_begin_lba + (fat_offset / bpb.BytsPerSec);
     uint32_t ent_offset = fat_offset % bpb.BytsPerSec;
@@ -438,8 +438,6 @@ void fat32_cat(Window* win, const char *filename) {
     fb_write(win, "\n");
 }
 
-
-
 // -----------------------------------------------------------------------------
 // Usage
 // -----------------------------------------------------------------------------
@@ -470,13 +468,14 @@ struct FAT32_Usage fat32_get_usage(void) {
 uint32_t fat32_get_current_dir(void) { return current_dir_cluster; }
 void     fat32_set_current_dir(uint32_t cluster) { current_dir_cluster = cluster; }
 
-int fat32_read(char* buf, size_t bufsize, size_t start_page, const char* path) {
+size_t fat32_read(char* buf, size_t bufsize, size_t start_page, const char* path) {
     uint32_t cluster = bpb.RootClus;
     char segment[64];
     int seg_i = 0;
     int reading_file = 0;
 
-    if (!path || !path[0]) return 2;
+    if (!path || !path[0]) 
+        return 0;
 
     // Handle special base paths
     if (!strcmp(path, "/home") || !strcmp(path, "/"))
@@ -539,7 +538,7 @@ int fat32_read(char* buf, size_t bufsize, size_t start_page, const char* path) {
                     if (!found_cluster) scan = get_next_cluster(scan);
                 }
 
-                if (!found_cluster) return 2; // path not found
+                if (!found_cluster) return 0; // path not found
                 cluster = found_cluster;
             }
             seg_i = 0;
@@ -564,7 +563,7 @@ int fat32_read(char* buf, size_t bufsize, size_t start_page, const char* path) {
                 char lfn_buf[256]; lfn_buf[0] = 0;
 
                 for (int i = 0; i < eps; i++) {
-                    if (e[i].Name[0] == 0x00) { buf[pos] = 0; return 0; }
+                    if (e[i].Name[0] == 0x00) { buf[pos] = 0; return pos; }
                     if (e[i].Name[0] == 0xE5) { lfn_buf[0] = 0; continue; }
                     if (e[i].Attr == 0x0F) {
                         const struct FAT32_LFN_Entry* lfn = (const struct FAT32_LFN_Entry*)&e[i];
@@ -576,31 +575,340 @@ int fat32_read(char* buf, size_t bufsize, size_t start_page, const char* path) {
                     const char* name = choose_name(lfn_buf, shortnm);
 
                     for (int j = 0; name[j]; j++) {
-                        if (pos >= bufsize - 2) return 1; // too long
+                        if (pos >= bufsize - 2) return 0; // too long
                         buf[pos++] = name[j];
                     }
                     buf[pos++] = '\n';
-                    if (pos >= bufsize - 1) return 1;
+                    if (pos >= bufsize - 1) return 0;
                     lfn_buf[0] = 0;
                 }
             }
             cluster = get_next_cluster(cluster);
         }
         buf[pos] = 0;
-        return 0;
-    } else {
+        return pos;
+    } 
+    else {
         uint32_t fclus = cluster;
         uint32_t bytes_read = 0;
-        while (fclus && pos < bufsize) {
+        uint32_t file_size = 0;
+
+        // find the size of this file
+        uint8_t sb[512];
+        uint32_t scan = current_dir_cluster;
+        while (scan && !file_size) {
+            uint32_t lba = cluster_to_lba(scan);
+            for (int s = 0; s < bpb.SecPerClus && !file_size; s++) {
+                ata_read_sector(lba + s, sb);
+                struct FAT32_DirEntry *e = (struct FAT32_DirEntry *)sb;
+                int eps = bpb.BytsPerSec / sizeof(struct FAT32_DirEntry);
+                for (int k = 0; k < eps; k++) {
+                    if (e[k].Name[0] == 0x00) break;
+                    if (e[k].Attr == 0x0F) continue;
+                    uint32_t clus = (e[k].FstClusHI << 16) | e[k].FstClusLO;
+                    if (clus == cluster) {
+                        file_size = e[k].FileSize;
+                        break;
+                    }
+                }
+            }
+            scan = get_next_cluster(scan);
+        }
+
+        // ---- pre-check buffer size ----
+        // ensure we can hold the *entire* file (including null terminator)
+        if (file_size + 1 > bufsize)
+            return 0;  // not enough space; prevent partial read
+
+        // ---- read entire file ----
+        while (fclus && bytes_read < file_size) {
             uint32_t sec_lba = cluster_to_lba(fclus);
-            for (int s = 0; s < bpb.SecPerClus; s++) {
-                if (pos + 512 >= bufsize) return 1;
-                ata_read_sector(sec_lba + s, (uint8_t*)buf + pos);
-                pos += bpb.BytsPerSec;
+            for (int s = 0; s < bpb.SecPerClus && bytes_read < file_size; s++) {
+                ata_read_sector(sec_lba + s, (uint8_t*)buf + bytes_read);
+                bytes_read += 512;
+                if (bytes_read >= file_size)
+                    break;
             }
             fclus = get_next_cluster(fclus);
         }
-        buf[(pos < bufsize) ? pos : bufsize - 1] = 0;
-        return 0;
+
+        if (bytes_read < file_size)
+            return 0; // file chain ended prematurely — incomplete read
+
+        buf[file_size] = 0;
+        return file_size;
     }
+
+}
+
+// -----------------------------------------------------------------------------
+// Retrieve file size by path (returns 0 if not found or it's a directory)
+// -----------------------------------------------------------------------------
+size_t fat32_get_file_size(const char *path) {
+    if (!path || !path[0])
+        return 0;
+
+    uint32_t cluster = bpb.RootClus;
+    char segment[64];
+    int seg_i = 0;
+    int is_file = 0;
+    uint32_t file_size = 0;
+
+    // Normalize base path
+    if (!strcmp(path, "/home") || !strcmp(path, "/"))
+        cluster = bpb.RootClus;
+    else if (str_starts_with(path, "/home/"))
+        path += 6;
+    else if (path[0] == '/')
+        path++;
+
+    // ---- Walk the path ----
+    for (int i = 0;; i++) {
+        char c = path[i];
+        if (c == '/' || c == '\0') {
+            segment[seg_i] = 0;
+            if (seg_i > 0) {
+                uint8_t sb[512];
+                int eps = bpb.BytsPerSec / sizeof(struct FAT32_DirEntry);
+                uint32_t found_cluster = 0;
+                uint32_t scan = cluster;
+
+                while (scan && !found_cluster) {
+                    uint32_t lba = cluster_to_lba(scan);
+                    for (int s = 0; s < bpb.SecPerClus && !found_cluster; s++) {
+                        ata_read_sector(lba + s, sb);
+                        struct FAT32_DirEntry *e = (struct FAT32_DirEntry *)sb;
+                        char lfn_buf[256]; lfn_buf[0] = 0;
+
+                        for (int k = 0; k < eps; k++) {
+                            if (e[k].Name[0] == 0x00) break;
+                            if (e[k].Name[0] == 0xE5) { lfn_buf[0] = 0; continue; }
+                            if (e[k].Attr == 0x0F) {
+                                const struct FAT32_LFN_Entry *lfn = (const struct FAT32_LFN_Entry *)&e[k];
+                                lfn_prepend_piece(lfn_buf, lfn, sizeof(lfn_buf));
+                                continue;
+                            }
+
+                            char shortnm[13]; make_short_name_lower(e[k].Name, shortnm);
+                            const char *cand = choose_name(lfn_buf, shortnm);
+
+                            if (!strcasecmp(cand, segment)) {
+                                found_cluster = (e[k].FstClusHI << 16) | e[k].FstClusLO;
+                                is_file = !(e[k].Attr & 0x10);
+                                if (is_file)
+                                    file_size = e[k].FileSize;
+                                break;
+                            }
+                            lfn_buf[0] = 0;
+                        }
+                    }
+                    if (!found_cluster)
+                        scan = get_next_cluster(scan);
+                }
+
+                if (!found_cluster)
+                    return 0; // Not found
+
+                cluster = found_cluster;
+            }
+
+            seg_i = 0;
+            if (c == '\0') break;
+        } else if (seg_i < 63) {
+            segment[seg_i++] = c;
+        }
+    }
+
+    return is_file ? file_size : 0;
+}
+
+static int fat32_alloc_handle(void) {
+    for (int i = 0; i < MAX_OPEN_FILES; i++) {
+        if (!fat32_open_files[i].used) {
+            fat32_open_files[i].used = 1;
+            return i;
+        }
+    }
+    return -1;
+}
+
+void fat32_close_file(int handle) {
+    if (handle < 0 || handle >= MAX_OPEN_FILES) return;
+    fat32_open_files[handle].used = 0;
+}
+int fat32_open_file(const char *path) {
+    if (!path || !path[0]) return -1;
+
+    uint32_t cluster = bpb.RootClus;
+    char segment[256];
+    int seg_i = 0;
+    int is_file = 0;
+    uint32_t file_size = 0;
+
+    // Optional prefix stripping
+    if (str_starts_with(path, "/home/")) path += 6;
+    else if (path[0] == '/') path++;
+
+    // Walk the path components
+    for (int i = 0;; i++) {
+        char c = path[i];
+        if (c == '/' || c == '\0') {
+            segment[seg_i] = 0;
+            if (seg_i > 0) {
+                uint32_t found_cluster = 0;
+                int eps = bpb.BytsPerSec / sizeof(struct FAT32_DirEntry);
+
+                uint32_t dir_cluster = cluster;
+                while (dir_cluster && !found_cluster) {
+                    uint8_t sb[512];
+                    uint32_t lba = cluster_to_lba(dir_cluster);
+
+                    for (int s = 0; s < bpb.SecPerClus && !found_cluster; s++) {
+                        ata_read_sector(lba + s, sb);
+                        struct FAT32_DirEntry *e = (struct FAT32_DirEntry *)sb;
+                        char lfn_buf[256]; 
+                        lfn_buf[0] = 0;
+
+                        for (int k = 0; k < eps; k++) {
+                            if (e[k].Name[0] == 0x00) break;      // end of directory
+                            if (e[k].Name[0] == 0xE5) {           // deleted entry
+                                lfn_buf[0] = 0;
+                                continue;
+                            }
+                            if (e[k].Attr == 0x0F) {
+                                // Long file name entry
+                                const struct FAT32_LFN_Entry *lfn = (const struct FAT32_LFN_Entry *)&e[k];
+                                lfn_prepend_piece(lfn_buf, lfn, sizeof(lfn_buf));
+                                continue;
+                            }
+
+                            // Standard 8.3 entry
+                            char shortnm[13];
+                            make_short_name_lower(e[k].Name, shortnm);
+                            const char *cand = choose_name(lfn_buf, shortnm);
+
+                            if (!strcasecmp(cand, segment)) {
+                                found_cluster = ((uint32_t)e[k].FstClusHI << 16) | e[k].FstClusLO;
+                                is_file = !(e[k].Attr & 0x10);
+                                if (is_file)
+                                    file_size = e[k].FileSize;
+                                break;
+                            }
+
+                            lfn_buf[0] = 0; // reset after a valid entry
+                        }
+                    }
+
+                    if (!found_cluster)
+                        dir_cluster = get_next_cluster(dir_cluster);
+                }
+
+                if (!found_cluster)
+                    return -1; // Not found
+                cluster = found_cluster;
+            }
+
+            seg_i = 0;
+            if (c == '\0') break;
+        } else if (seg_i < (int)(sizeof(segment) - 1)) {
+            segment[seg_i++] = c;
+        }
+    }
+
+    if (!is_file) return -1;
+
+    int handle = fat32_alloc_handle();
+    if (handle < 0)
+        return -2; // no available handles
+
+    FAT32_FileHandle *f = &fat32_open_files[handle];
+    memset(f, 0, sizeof(*f));
+    f->used = 1;
+    f->start_cluster = cluster;
+    f->current_cluster = cluster;
+    f->cluster_index = 0;
+    f->file_size = file_size;
+    f->cache_valid = 0;
+    f->cached_cluster = 0;
+    f->bytes_read = 0;
+
+    return handle;
+}
+
+// --- Cluster-level read helper (safe and simple) ---
+static void ata_read_cluster(uint32_t cluster, uint8_t *dst) {
+    uint32_t lba = cluster_to_lba(cluster);
+    for (int s = 0; s < bpb.SecPerClus; s++, dst += bpb.BytsPerSec)
+        ata_read_sector(lba + s, dst);
+}
+
+// --- Correct + fast replacement for fat32_read_chunk() ---
+size_t fat32_read_chunk(int handle, void *buf, size_t size, size_t position) {
+    if (handle < 0 || handle >= MAX_OPEN_FILES || !buf || size == 0)
+        return 0;
+
+    FAT32_FileHandle *f = &fat32_open_files[handle];
+    if (!f->used || f->file_size == 0 || position >= f->file_size)
+        return 0;
+
+    const size_t bytes_per_cluster = bpb.BytsPerSec * bpb.SecPerClus;
+    size_t bytes_read_total = 0;
+    uint8_t *out = (uint8_t *)buf;
+    size_t pos = position;
+
+    // Determine which cluster this position starts in
+    uint32_t cluster_index = pos / bytes_per_cluster;
+    size_t cluster_offset = pos % bytes_per_cluster;
+
+    // Find the correct cluster — try to reuse last one
+    uint32_t cluster = f->cached_cluster;
+    uint32_t current_idx = f->cluster_index;
+
+    if (!f->cache_valid || cluster == 0 || cluster_index < current_idx) {
+        // Start from the beginning of the chain
+        cluster = f->start_cluster;
+        current_idx = 0;
+    }
+
+    // Advance to desired cluster
+    while (current_idx < cluster_index && cluster) {
+        cluster = get_next_cluster(cluster);
+        current_idx++;
+    }
+
+    if (!cluster)
+        return 0;
+
+    // Read until requested size or EOF
+    while (bytes_read_total < size && pos < f->file_size && cluster) {
+        // Load current cluster if not cached
+        if (!f->cache_valid || f->cached_cluster != cluster) {
+            ata_read_cluster(cluster, f->cache_buf);
+            f->cached_cluster = cluster;
+            f->cache_valid = 1;
+            f->cluster_index = current_idx;
+        }
+
+        // Compute available bytes from this cluster
+        size_t available = bytes_per_cluster - cluster_offset;
+        size_t remaining = size - bytes_read_total;
+        if (available > remaining)
+            available = remaining;
+        size_t file_remaining = f->file_size - pos;
+        if (available > file_remaining)
+            available = file_remaining;
+
+        // Copy from cache to user buffer
+        memcpy(out + bytes_read_total, f->cache_buf + cluster_offset, available);
+        bytes_read_total += available;
+        pos += available;
+
+        // Move to next cluster
+        cluster_offset = 0;
+        cluster = get_next_cluster(cluster);
+        current_idx++;
+    }
+
+    f->bytes_read = pos;
+    return bytes_read_total;
 }

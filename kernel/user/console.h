@@ -18,6 +18,7 @@ int find_var(const char* name);
 int find_or_insert_var(const char* name);
 void widget_run(Application* app, int appid);
 void widget_terminate(Application* app, int appid);
+void fb_image_from_file(Window *win, int file_id, size_t target_width, size_t target_height) ;
 
 #define MAX_HASH_VARS 1024
 typedef struct {

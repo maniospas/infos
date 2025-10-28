@@ -122,7 +122,7 @@ void fb_init(void *mb_info_addr) {
     for (;;) __asm__("hlt");
 }
 
-static inline void fb_putpixel(int x, int y, uint64_t color) {
+void fb_putpixel(int x, int y, uint64_t color) {
     fb_addr[y*fb_width + x] = color;
 }
 
@@ -160,9 +160,9 @@ void fb_window_border(Window *win, char* title, uint32_t color, int appid) {
         win->bg_color = win->DEFAULT_FG;
         fb_write(win, title);
         win->fg_color = 0x006600;
-        win->cursor_x = win->x+win->width-80;
+        win->cursor_x = win->x+win->width-120;
         if(appid>=0) {
-            fb_write(win, " #");
+            fb_write(win, " app");
             fb_write_dec(win, appid);
         }
         fb_write(win, "\n");

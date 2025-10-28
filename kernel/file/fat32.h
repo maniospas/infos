@@ -67,4 +67,26 @@ struct FAT32_Usage fat32_get_usage(void);
 uint32_t fat32_get_current_dir(void);
 void fat32_set_current_dir(uint32_t cluster);
 const char *fat32_get_current_path(void);
-int fat32_read(char*buf,size_t bufsize,size_t start_page,const char*path);
+size_t fat32_read(char*buf,size_t bufsize,size_t start_page,const char*path);
+size_t fat32_get_file_size(const char *path);
+
+#define MAX_OPEN_FILES 16
+#define SECTOR_SIZE 512
+
+typedef struct {
+    uint8_t  used;              // Whether this slot is active
+    uint32_t start_cluster;     // First cluster of the file
+    uint32_t current_cluster;   // Current cluster in the chain
+    uint32_t last_cluster;      // Optional: for append / write operations
+    uint32_t file_size;         // Total file size in bytes
+    uint32_t bytes_read;        // Total bytes read so far
+    uint32_t cluster_index;     // Index of current cluster (0 = first cluster)
+    uint32_t cached_cluster;    // Cluster number of currently cached data
+    uint8_t  cache_valid;       // Whether the cache is valid
+    uint8_t  cache_buf[64 * SECTOR_SIZE]; // Enough for up to 32KB clusters
+} FAT32_FileHandle;
+
+static FAT32_FileHandle fat32_open_files[MAX_OPEN_FILES];
+int    fat32_open_file(const char *path);
+void   fat32_close_file(int handle);
+size_t fat32_read_chunk(int handle, void *buf, size_t size, size_t position);

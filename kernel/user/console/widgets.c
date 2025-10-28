@@ -31,12 +31,12 @@ void widget_terminate(Application* app, int appid) {
         return;
     uint32_t prev = app->window->bg_color;
     app->window->bg_color = 0;
-    app->window->y -= 40;
-    app->window->height += 80;
+    app->window->y -= 60;
+    app->window->height += 100;
     app->window->width += 40;
     fb_clear(app->window);
-    app->window->y += 40;
-    app->window->height -= 80;
+    app->window->y += 60;
+    app->window->height -= 100;
     app->window->width -= 40;
     app->window->bg_color = prev;
 }

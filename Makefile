@@ -5,7 +5,7 @@ AS := nasm
 LD := $(PREFIX)ld
 
 KERNEL := kernel.elf
-ISO := LettuOS.iso
+ISO := letOS.iso
 DISK_IMG := fat32.img
 
 # === Compiler & Linker Flags ===
@@ -58,18 +58,19 @@ $(DISK_IMG): disk
 	mkfs.vfat -F 32 $(DISK_IMG)
 	mcopy -i $(DISK_IMG) -s disk/* ::
 
+
 # === Run Target ===
 run: $(ISO) $(DISK_IMG)
 	@echo "  QEMU (BIOS)"
-	qemu-system-x86_64 -cdrom "LettuOS.iso" -boot d -m 512M -vga virtio -display sdl,gl=on -full-screen \
-    -drive file="fat32.img",format=raw,media=disk
+	qemu-system-x86_64 -cdrom "letOS.iso" -boot d -m 512M -vga virtio -display sdl,gl=on -full-screen \
+    -drive file="fat32.img",format=raw,media=disk 
 
 # 	qemu-system-x86_64 -cdrom $(ISO) -boot d -m 512M -vga virtio -display sdl \
 # 		-drive file=$(DISK_IMG),format=raw,media=disk
 
 runtiny: $(ISO)
 	@echo "  QEMU (128 KB Tiny Mode)"
-	qemu-system-x86_64 -cdrom "LettuOS.iso" -boot d -m 6M -vga virtio -display sdl,gl=on -full-screen \
+	qemu-system-x86_64 -cdrom "letOS.iso" -boot d -m 6M -vga virtio -display sdl,gl=on -full-screen \
     -drive file="fat32.img",format=raw,media=disk
 
 # === Clean ===

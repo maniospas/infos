@@ -23,7 +23,7 @@ void kernel_main(void) {
     fullscreen->bg_color = 0;
     fb_clear(fullscreen);
     fb_set_scale(fullscreen, 6 + text_size, 1 + text_size);
-    fb_write_ansi(fullscreen, "\x1b[32mLettuOS\n\x1b[0m");
+    fb_write_ansi(fullscreen, "\x1b[32mletOS\n\x1b[0m");
     fb_set_scale(fullscreen, 2 + text_size, 1 + text_size);
     fullscreen->bg_color = fullscreen->DEFAULT_BG;
 
@@ -82,7 +82,7 @@ void kernel_main(void) {
             }
             uint32_t right_x = 60 * 16 + 60;
             uint32_t right_y = 180;
-            uint32_t spacing = 40;
+            uint32_t spacing = 55;
             uint32_t total_height = fullscreen->height;  // same region as before
             uint32_t available_height = total_height - (active_count > 1 ? (active_count - 1) * spacing : 0);
             uint32_t widget_height = active_count ? available_height / active_count : 0;

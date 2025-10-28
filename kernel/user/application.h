@@ -33,6 +33,7 @@ typedef struct Application {
     char* output;                      // NULL or an malloced array of APPLICATION_MESSAGE_SIZE
     Window* window;                    // pointer to associated window
     uint32_t output_state;
+    uint32_t input_state;
     char** vars;
     size_t MAX_VARS;
 } Application;
