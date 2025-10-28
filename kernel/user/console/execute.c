@@ -1,61 +1,76 @@
 #include "../console.h"
 
-
-// Execute subcommand and capture output
+#define CONSOLE_EXECUTE_OK 0
+#define CONSOLE_EXECUTE_OOM 1
+#define CONSOLE_EXECUTE_RUNTIME_ERROR 2
+// Execute subcommand and capture output (defensive version)
 static size_t console_run_subcommand(Application *app, const char *subcmd, char *out, size_t out_limit) {
-    Application temp = *app; // stack copy
+    if (!app || !subcmd || !out || out_limit == 0)
+        return 0;
+
+    Application temp = *app;
     temp.data = subcmd;
     temp.output = out;
     temp.output_state = 0;
-    out[0] = 0;
-    for (size_t i = 0; i < out_limit; i++)
-        out[i] = 0;
+
+    memset(out, 0, out_limit);
     console_execute(&temp);
+
+    // Compute actual output length safely
     size_t len = 0;
     while (len < out_limit && out[len])
         len++;
-    while (len > 0 && (out[len - 1] == '\n' || out[len - 1] == '\r')) {
-        out[len - 1] = 0;
-        len--;
-    }
+
+    // Trim trailing newlines
+    while (len > 0 && (out[len - 1] == '\n' || out[len - 1] == '\r'))
+        out[--len] = 0;
+
+    if (len >= out_limit)
+        len = out_limit - 1;
+
     return len;
 }
 
-void console_preprocess(Application *app) {
+
+int console_preprocess(Application *app) {
+    if (!app || !app->data)
+        return CONSOLE_EXECUTE_RUNTIME_ERROR;
+
     const char *src = app->data;
-    char processed[APPLICATION_MESSAGE_SIZE];
+    char *processed = malloc(APPLICATION_MESSAGE_SIZE);
+    if (!processed)
+        return CONSOLE_EXECUTE_OOM;
+    memset(processed, 0, APPLICATION_MESSAGE_SIZE);
+
     size_t pos = 0;
     int bracket_depth = 0;
+
     while (*src && pos < APPLICATION_MESSAGE_SIZE - 1) {
 
-        // --- track brackets ---
+        // --- track brackets safely ---
         if (*src == '{') {
-            if(bracket_depth==1)
-                processed[pos++] = *src++;
-            else 
-                src++; 
+            if (bracket_depth == 1 && pos < APPLICATION_MESSAGE_SIZE - 1)
+                processed[pos++] = *src;
+            src++;
             bracket_depth++;
             continue;
         } else if (*src == '}') {
-            if(bracket_depth==2)
-                processed[pos++] = *src++;
-            else 
-                src++; 
+            if (bracket_depth == 2 && pos < APPLICATION_MESSAGE_SIZE - 1)
+                processed[pos++] = *src;
+            src++;
             bracket_depth--;
             continue;
         }
 
+        // --- handle subcommands ---
         if (!bracket_depth && (*src == '(' || *src == '|')) {
-            char type = *src;
-            src++; // skip '(' or '|'
-
-            // consume spaces after operator
-            while (*src == ' ') src++;
+            char type = *src++;
+            while (*src == ' ') src++; // consume spaces
 
             const char *start = src;
             int depth = (type == '(');
 
-            // find end of subcommand
+            // find subcommand end
             while (*src && ((type == '(' && depth > 0) || (type == '|' && *src != '\n' && *src != '\r'))) {
                 if (type == '(') {
                     if (*src == '(') depth++;
@@ -67,45 +82,63 @@ void console_preprocess(Application *app) {
 
             if (type == '(' && depth != 0) {
                 fb_write_ansi(app->window, "\x1b[31mERROR\x1b[0m Unmatched '('.\n");
-                return;
+                free(processed);
+                return CONSOLE_EXECUTE_RUNTIME_ERROR;
             }
 
-            // extract subcommand text
-            size_t inner_len = (type == '(') ? (src - start) : (src - start);
-            char inner[APPLICATION_MESSAGE_SIZE];
-            size_t i = 0;
-            while (i < inner_len && i < APPLICATION_MESSAGE_SIZE - 1) {
-                inner[i] = start[i];
-                i++;
+            size_t inner_len = src - start;
+            if (inner_len >= APPLICATION_MESSAGE_SIZE)
+                inner_len = APPLICATION_MESSAGE_SIZE - 1;
+
+            // Allocate inner and subout dynamically
+            char *inner = malloc(inner_len + 1);
+            if (!inner) {
+                free(processed);
+                return CONSOLE_EXECUTE_OOM;
             }
-            inner[i] = 0;
+            memcpy(inner, start, inner_len);
+            inner[inner_len] = 0;
+
+            char *subout = malloc(APPLICATION_MESSAGE_SIZE);
+            if (!subout) {
+                free(inner);
+                free(processed);
+                return CONSOLE_EXECUTE_OOM;
+            }
+            memset(subout, 0, APPLICATION_MESSAGE_SIZE);
 
             // execute subcommand
-            char subout[APPLICATION_MESSAGE_SIZE];
             size_t out_len = console_run_subcommand(app, inner, subout, APPLICATION_MESSAGE_SIZE);
+            if (out_len >= APPLICATION_MESSAGE_SIZE)
+                out_len = APPLICATION_MESSAGE_SIZE - 1;
 
-            // insert space if previous character isn't whitespace
+            // insert space if previous isn't whitespace
             if (pos > 0 && processed[pos - 1] != ' ' && pos < APPLICATION_MESSAGE_SIZE - 1)
                 processed[pos++] = ' ';
 
-            // append result
-            for (size_t j = 0; j < out_len && pos < APPLICATION_MESSAGE_SIZE - 1; j++)
-                processed[pos++] = subout[j];
+            // append result safely
+            size_t copy_len = out_len;
+            if (pos + copy_len >= APPLICATION_MESSAGE_SIZE)
+                copy_len = APPLICATION_MESSAGE_SIZE - pos - 1;
 
-            // skip ')' if present
+            memcpy(processed + pos, subout, copy_len);
+            pos += copy_len;
+
+            free(inner);
+            free(subout);
+
+            // skip closing parenthesis
             if (type == '(' && *src == ')') src++;
 
-            // consume spaces after subcommand
-            while (*src == ' ') src++;
+            while (*src == ' ') src++; // skip trailing spaces
 
-            // also add one space separator if next char isn't whitespace or end
             if (*src && *src != ' ' && pos < APPLICATION_MESSAGE_SIZE - 1)
                 processed[pos++] = ' ';
 
             continue;
         }
 
-        // skip spaces before pipe
+        // --- skip redundant spaces before pipe ---
         if (*src == ' ') {
             const char *peek = src + 1;
             while (*peek == ' ') peek++;
@@ -120,35 +153,52 @@ void console_preprocess(Application *app) {
 
     processed[pos] = 0;
 
-    // copy back
-    char *dst = (char*)app->data;
+    // copy back safely
     size_t i = 0;
+    char *dst = (char*)app->data;
     while (processed[i] && i < APPLICATION_MESSAGE_SIZE - 1) {
         dst[i] = processed[i];
         i++;
     }
     dst[i] = 0;
+
+    free(processed);
+    return CONSOLE_EXECUTE_OK;
 }
 
 
+int console_execute(Application *app) {
+    if (!app || !app->data)
+        return CONSOLE_EXECUTE_RUNTIME_ERROR;
 
-void console_execute(Application *app) {
-    char processed[APPLICATION_MESSAGE_SIZE];
-    char* prev = app->data;
+    char *copy = malloc(APPLICATION_MESSAGE_SIZE);
+    if (!copy)
+        return CONSOLE_EXECUTE_OOM;
+    memset(copy, 0, APPLICATION_MESSAGE_SIZE);
+
     size_t i = 0;
     while (app->data[i] && i < APPLICATION_MESSAGE_SIZE - 1) {
-        processed[i] = app->data[i];
+        copy[i] = app->data[i];
         i++;
     }
-    processed[i] = 0;
-    app->data = processed;
-    console_execute_overwrite(app);
+    copy[i] = 0;
+
+    char *prev = app->data;
+    app->data = copy;
+
+    int ret = console_execute_overwrite(app);
+
     app->data = prev;
+    free(copy);
+
+    return ret ? ret : CONSOLE_EXECUTE_OK;
 }
 
-void console_execute_overwrite(Application *app) {
-    console_preprocess(app);
 
+int console_execute_overwrite(Application *app) {
+    int ret = console_preprocess(app);
+    if(ret)
+        return ret;
     Window* win = app->window;
     char** vars = app->vars;
     size_t MAX_VARS = app->MAX_VARS;
@@ -163,7 +213,7 @@ void console_execute_overwrite(Application *app) {
         size_t name_len = args - name_start;
         if (name_len == 0) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing variable name. Type \033[32mhelp\033[0m for help.\n");
-            return;
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
 
         // Copy variable name
@@ -177,14 +227,14 @@ void console_execute_overwrite(Application *app) {
         while (*args == ' ') args++;
         if (!*args) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing value. Type \033[32mhelp\033[0m for help.\n");
-            return;
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
 
         // Find or insert variable
         int idx = find_or_insert_var(varname);
         if (idx < 0) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Variable table full.\n");
-            return;
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
 
         // Copy value string
@@ -205,7 +255,7 @@ void console_execute_overwrite(Application *app) {
     }
     else if (!strcmp(cmd, "help")) {
         fb_write_ansi(win, "  \033[32mhelp\033[0m     - Show this help\n");
-        fb_write_ansi(win, "  \033[32mread\033[0m     - Read file or directory contents (up to 4KB)\n");
+        fb_write_ansi(win, "  \033[32mread\033[0m     - Read file or directory filenames up to 4KB\n");
         fb_write_ansi(win, "  \033[32mfile\033[0m     - Open file\n");
         fb_write_ansi(win, "  \033[32mcd\033[0m X     - Change directory (use /home for root)\n");
         //fb_write_ansi(win, "  \033[32mcat\033[0m X    - Print file contents\n");
@@ -254,7 +304,7 @@ void console_execute_overwrite(Application *app) {
             text_size = 1;
         else {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Valid usage: text big | text small | text default\n");
-            return;
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
         fb_clear(win);
         fb_set_scale(win, 6 + text_size, 1 + text_size);
@@ -277,19 +327,19 @@ void console_execute_overwrite(Application *app) {
         while (*path == ' ') path++;
         if (!*path) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing path. Example: file logo.bmp\n");
-            return;
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
 
         int handle = fat32_open_file(path);
         if (handle == -2) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Too many open files. Try to \x1b[32mkill\x1b[0m some.\n");
-            return;
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
         if (handle < 0) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Failed to open file: ");
             fb_write(win, path);
             fb_write(win, "\n");
-            return;
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
 
         // --- Print feedback to screen ---
@@ -330,11 +380,11 @@ void console_execute_overwrite(Application *app) {
         while (*arg == ' ') arg++;
         if (!*arg) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Usage: image file<ID> [width height]\n");
-            return;
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
         if (strncmp(arg, "file", 4)) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Expected a file handle like file1.\n");
-            return;
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
         arg += 4;
         int file_id = 0;
@@ -345,7 +395,7 @@ void console_execute_overwrite(Application *app) {
 
         if (file_id < 0 || file_id >= 16) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Invalid file handle.\n");
-            return;
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
         size_t width = 0, height = 0;
         while (*arg == ' ') arg++;
@@ -395,7 +445,7 @@ void console_execute_overwrite(Application *app) {
         while (*arg == ' ') arg++;
         if (!*arg) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Invalid ID. Example: kill app1 or kill file3\n");
-            return;
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
 
         int is_file = 0;
@@ -406,7 +456,7 @@ void console_execute_overwrite(Application *app) {
             arg += 3;
         } else {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Invalid ID. Example: kill app1 or kill file3\n");
-            return;
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
 
         // Parse numeric ID
@@ -418,7 +468,7 @@ void console_execute_overwrite(Application *app) {
         }
         if (*p) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Invalid ID. Example: kill app1 or kill file3\n");
-            return;
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
 
         if (is_file) {
@@ -427,13 +477,13 @@ void console_execute_overwrite(Application *app) {
                 fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Not open: file");
                 fb_write_dec(win, id);
                 fb_write(win, "\n");
-                return;
+                return CONSOLE_EXECUTE_RUNTIME_ERROR;
             }
             fat32_close_file(id);
             fb_write_ansi(win, "\x1b[32mOK\x1b[0m File handle closed: ");
             fb_write_dec(win, id);
             fb_write(win, "\n");
-            return;
+            return CONSOLE_EXECUTE_OK;
         }
 
         // --- Kill an app ---
@@ -441,17 +491,17 @@ void console_execute_overwrite(Application *app) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Does not exist: app");
             fb_write_dec(win, id);
             fb_write(win, "\n");
-            return;
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
         if (id == 0) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Use \x1b[32mexit\x1b[0m to turn off the computer instead.\n");
-            return;
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
         if (!apps[id].run) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Does not exist with: app");
             fb_write_dec(win, id);
             fb_write(win, "\n");
-            return;
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
 
         int saved = 1;
@@ -483,7 +533,6 @@ void console_execute_overwrite(Application *app) {
             fb_write_ansi(win, "\033[31mERROR\033[0m Cancelled by user.\n");
         }
     }
-
     else if (!strncmp(cmd, "app ", 4)) {
         const char *arg = cmd + 4;
         // Find first free widget slot
@@ -497,7 +546,7 @@ void console_execute_overwrite(Application *app) {
                 apps[i].MAX_VARS = MAX_VARS;
                 if(!apps[i].window) {
                     fb_write_ansi(win, "\033[31mERROR\033[0m Not enough memory to start app.\n");
-                    return;
+                    return CONSOLE_EXECUTE_RUNTIME_ERROR;
                 }
                 apps[i].run = widget_run;
                 apps[i].save = NULL;
@@ -534,7 +583,7 @@ void console_execute_overwrite(Application *app) {
                 fb_write_ansi(win, "\033[32mOK\033[0m Created: app");
                 fb_write_dec(win, i);
                 fb_write(win, "\n");
-                return;
+                return CONSOLE_EXECUTE_RUNTIME_ERROR;
             }
         }
         fb_write_ansi(win, "\033[31mERROR\033[0m No free app slots available.\n");
@@ -544,13 +593,13 @@ void console_execute_overwrite(Application *app) {
         while (*arg == ' ') arg++;
         if (!*arg) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing app target. Example: to app1 hello\n");
-            return;
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
 
         // --- Require "app" prefix ---
         if (strncmp(arg, "app", 3) != 0) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Invalid target. Example: to app1 hello'\n");
-            return;
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
         arg += 3;
 
@@ -563,26 +612,26 @@ void console_execute_overwrite(Application *app) {
         }
         if (p == arg || (*p && *p != ' ')) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Invalid app ID. Example: to app1 hello\n");
-            return;
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
 
         // --- Skip spaces to get message ---
         while (*p == ' ') p++;
         if (!*p) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing message. Example: to app1 hello\n");
-            return;
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
 
         // --- Validate app ID ---
         if (id == 0) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Cannot send to app0 (system console).\n");
-            return;
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
         if (id >= MAX_APPLICATIONS || !apps[id].run) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Does not exist: app");
             fb_write_dec(win, id);
             fb_write(win, "\n");
-            return;
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
 
         // --- Copy message ---
@@ -603,7 +652,7 @@ void console_execute_overwrite(Application *app) {
         while (*path == ' ') path++;
         if (!*path) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing path. Example: read /home\n");
-            return;
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
         app->output_state = fat32_read(app->output, APPLICATION_MESSAGE_SIZE, 0, path);
         if (app->output_state) {
@@ -624,7 +673,7 @@ void console_execute_overwrite(Application *app) {
         while (*val == ' ') val++;
         if (!*val) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing value. Example: print hello\n");
-            return;
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
         fb_write_ansi(win, val);
         fb_write(win, "\n");
@@ -707,7 +756,7 @@ void console_execute_overwrite(Application *app) {
         while (*name == ' ') name++;
         if (!*name) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m No variable given.\n");
-            return;
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
 
         char varname[64];
@@ -720,7 +769,8 @@ void console_execute_overwrite(Application *app) {
         if (idx < 0 || !var_table[idx].value) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Unknown variable: ");
             fb_write(win, varname);
-            return;
+            fb_write(win, "\n");
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
 
         const char *val = var_table[idx].value;
@@ -741,4 +791,5 @@ void console_execute_overwrite(Application *app) {
         fb_write(win, val);
         fb_write(win, "\n");
     }
+    return CONSOLE_EXECUTE_OK;
 }

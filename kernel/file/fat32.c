@@ -721,6 +721,7 @@ size_t fat32_get_file_size(const char *path) {
 
     return is_file ? file_size : 0;
 }
+static FAT32_FileHandle fat32_open_files[MAX_OPEN_FILES];
 
 static int fat32_alloc_handle(void) {
     for (int i = 0; i < MAX_OPEN_FILES; i++) {

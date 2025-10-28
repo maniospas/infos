@@ -33,3 +33,4 @@ void fb_window_border(Window *win, char* title, uint32_t color, int appid);
 void fb_bar(Window* win, long int value, long int max_value, size_t width);
 void fb_image(Window *win, const void *data, size_t size, size_t target_width, size_t target_height);
 void fb_putpixel(int x, int y, uint64_t color);
+void fb_clearline(Window *win, size_t line_start_cursor_x);

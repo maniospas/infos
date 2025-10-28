@@ -41,12 +41,21 @@ void kernel_main(void) {
     // Initialize variables
     size_t MAX_VARS = 4096/sizeof(char*); 
     char** vars = malloc(MAX_VARS*sizeof(char*));
-    for (uint32_t i = 0; i < MAX_VARS; i++)
-        vars[i] = NULL; 
+    if(!vars) {
+        fb_write_ansi(fullscreen, "\033[31mERROR\033[0m Cannot initialize lettuce scripting.\n");
+        for (;;) __asm__("hlt");
+    }
+    else
+        for (uint32_t i = 0; i < MAX_VARS; i++)
+            vars[i] = NULL; 
 
     // Initialize apps
-    MAX_APPLICATIONS = 4;
+    MAX_APPLICATIONS = 6;
     apps = malloc(sizeof(Application)*MAX_APPLICATIONS);
+    if(!apps) {
+        fb_write_ansi(fullscreen, "\033[31mERROR\033[0m Cannot initialize apps.\n");
+        for (;;) __asm__("hlt");
+    }
     for (uint32_t i = 0; i < MAX_APPLICATIONS; i++) {
         apps[i].MAX_VARS = MAX_VARS;
         apps[i].vars = vars;

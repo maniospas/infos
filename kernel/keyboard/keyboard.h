@@ -25,6 +25,7 @@ char key_printable(unsigned char scancode);
 #define KEY_ALT       0x38
 #define KEY_ESC       0x01
 #define KEY_CAPSLOCK  0x3A
+#define KEY_DELETE    0x53  
 
 // Extended (0xE0 prefix usually)
 #define KEY_ARROW_UP    0x48

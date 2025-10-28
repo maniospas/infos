@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 
-#define MIN_ORDER 12  // 4 KB
+#define MIN_ORDER 12  // 4 KB (move to lower amounts for embedded maybe)
 #define MAX_ORDER 42  // 1TB theoretical max, dynamically limited
 #define ORDER_COUNT (MAX_ORDER - MIN_ORDER + 1)
 

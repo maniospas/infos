@@ -198,6 +198,47 @@ void fb_clear(Window *win) {
         }
     }
 }
+void fb_clearline(Window *win, size_t line_start_cursor_x) {
+    if (!fb_addr) return;
+
+    int sx = (int)line_start_cursor_x;
+    if (sx < win->x + margin)
+        sx = win->x + margin;
+
+    int sy = win->cursor_y;
+    int ex = win->x + win->width - margin;
+    int ey = sy + CHAR_H;
+    uint32_t color = win->bg_color;
+
+    // Clamp drawing to window bounds
+    if (sy < win->y)
+        sy = win->y;
+    if (ey > win->y + win->height)
+        ey = win->y + win->height;
+    if (sx >= ex || sy >= ey)
+        return; // nothing visible
+
+    uint8_t r = (color >> 16) & 0xFF;
+    uint8_t g = (color >> 8)  & 0xFF;
+    uint8_t b = (color >> 0)  & 0xFF;
+
+    for (int y = sy; y < ey; y++) {
+        if (y < 0 || y >= (int)fb_height) continue;
+        uint8_t *row = (uint8_t *)fb_addr + y * fb_pitch;
+        for (int x = sx; x < ex && x < (int)fb_width; x++) {
+            size_t off = x * (fb_bpp / 8);
+            row[off + 0] = b;
+            row[off + 1] = g;
+            row[off + 2] = r;
+            if (fb_bpp == 32)
+                row[off + 3] = 0;
+        }
+    }
+
+    // Reset cursor safely to start of the cleared line within bounds
+    win->cursor_x = win->x + margin;
+}
+
 
 void fb_put_char(Window* win, char c) {
     if (!fb_addr) return;
@@ -214,9 +255,8 @@ void fb_put_char(Window* win, char c) {
 
     if ((uint8_t)c < fontinfo->first || (uint8_t)c > fontinfo->last)
         return; // Ignore unsupported characters
-    if(win->height<CHAR_H+margin*2)
+    if(win->height<2*CHAR_H+margin*2)
         return;
-    // Handle scrolling
     // Handle scrolling
     while (win->cursor_y + CHAR_H + margin > win->y + win->height) {
         // Amount by which we need to scroll up so that bottom aligns at y + height - margin

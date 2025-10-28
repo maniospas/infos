@@ -31,6 +31,26 @@ void *memset(void *s, int c, size_t n) {
     return s;
 }
 
+void *memmove(void *dest, const void *src, size_t n) {
+    unsigned char *d = (unsigned char *)dest;
+    const unsigned char *s = (const unsigned char *)src;
+
+    if (d == s || n == 0)
+        return dest;
+
+    if (d < s) {
+        // Copy forward
+        for (size_t i = 0; i < n; i++)
+            d[i] = s[i];
+    } else {
+        // Copy backward to handle overlap
+        for (size_t i = n; i > 0; i--)
+            d[i - 1] = s[i - 1];
+    }
+    return dest;
+}
+
+
 size_t strlen(const char *s) {
     size_t len = 0;
     while (s[len])
@@ -53,6 +73,13 @@ const char* strfindlastdot(const char *s) {
     return last;
 }
 
+char *strcpy(char *dest, const char *src) {
+    char *d = dest;
+    while ((*d++ = *src++))
+        ;
+    return dest;
+}
+
 int strcasecmp(const char *a, const char *b) {
     while (*a && *b) {
         char ca = *a, cb = *b;
@@ -63,6 +90,18 @@ int strcasecmp(const char *a, const char *b) {
     }
     return *a - *b;
 }
+
+char *strncpy(char *dest, const char *src, size_t n) {
+    size_t i = 0;
+    for (; i < n && src[i]; i++) {
+        dest[i] = src[i];
+    }
+    for (; i < n; i++) {
+        dest[i] = '\0';
+    }
+    return dest;
+}
+
 
 // static int str_ncmp(const char *a, const char *b, int n) {
 //     for (int i = 0; i < n; i++) {

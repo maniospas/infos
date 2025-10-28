@@ -86,7 +86,6 @@ typedef struct {
     uint8_t  cache_buf[64 * SECTOR_SIZE]; // Enough for up to 32KB clusters
 } FAT32_FileHandle;
 
-static FAT32_FileHandle fat32_open_files[MAX_OPEN_FILES];
 int    fat32_open_file(const char *path);
 void   fat32_close_file(int handle);
 size_t fat32_read_chunk(int handle, void *buf, size_t size, size_t position);

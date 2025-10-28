@@ -8,8 +8,8 @@
 #include "../memory/memory.h"
 #include "../io.h"
 
-void console_execute(Application *win);
-void console_execute_overwrite(Application *win);
+int console_execute(Application *win);
+int console_execute_overwrite(Application *win);
 void console_prompt(Window *win);
 int console_readline(Window *win, char *buffer, size_t size);
 void poweroff(Window *win);
