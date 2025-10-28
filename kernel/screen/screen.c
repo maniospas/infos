@@ -249,11 +249,11 @@ void fb_put_char(Window* win, char c) {
     // Render character safely
     for (uint32_t y = 0; y < CHAR_H; y++) {
         int draw_y = win->cursor_y + y;
-        if (draw_y < 0 || draw_y >= (int)fb_height) continue;
+        if (draw_y < 0 || draw_y >= fb_height) continue;
 
         for (uint32_t x = 0; x < CHAR_W; x++) {
             int draw_x = win->cursor_x + x;
-            if (draw_x < 0 || draw_x >= (int)fb_width) continue;
+            if (draw_x < 0 || draw_x >= fb_width) continue;
 
             uint32_t src_x = (uint32_t)(x * invscale);
             uint32_t src_y = (uint32_t)(y * invscale);
