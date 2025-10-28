@@ -627,7 +627,7 @@ void console_execute_overwrite(Application *app) {
     }
     else if (!strcmp(cmd, "args")) {
         const char *in = app->input;
-        if (*in && app->input_state) {
+        if (*in && app->input_state && *in!='\n') {
             size_t in_len = app->input_state;
             if (in_len >= APPLICATION_MESSAGE_SIZE)
                 in_len = APPLICATION_MESSAGE_SIZE - 1;

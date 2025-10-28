@@ -4,6 +4,9 @@
 
 LetOS (pronounced *lettuce*) is a lightweight operating system featuring a keyboard-driven windowed interface and persistent processes. It uses minimal resources, though it uses GRUB as a bootloader that requires 6MB of RAM and consumes 12 MB of disk space.
 
+**License:** Apache2.0 - see LICENSE.txt<br>
+**Maintainer:** Emmanouil Krasanakis (maniospas@hotmail.com)
+
 ## 💿 Running the ISO
 
 Run *letOS.iso* by one of these options:
@@ -45,9 +48,7 @@ To build the system from source, you need a cross-compilation toolchain targetin
 - Building or installing x86_64-elf-gcc
 - Setting up qemu-system-x86_64 for testing
 
-After completing these steps, you can build and run letOS directly on any Linux distribution.
-
-## ⚙️ Project Structure
+After completing these steps, you can build and run letOS directly on any Linux distribution. The project is structured as follows:
 
 - boot/ — 32-bit bootstrap code and transition to long mode
 - kernel/ — core 64-bit kernel and window manager
@@ -56,6 +57,4 @@ After completing these steps, you can build and run letOS directly on any Linux 
 - Makefile — build and run automation
 - bootstrapping.txt — toolchain setup instructions
 
-**Notes:**
-- *malloc* or *realloc* are expected to return NULL if they try to allocate more than half (or even lower numbers) 
-of remainder memory. This is due to the buddy memory management system.
+⚠️ **Development note:** While developing, note that *malloc* or *realloc* are expected to return NULL if they try to allocate more than half (or even lower numbers) of remainder memory. This is due to the buddy memory management system. Furthermore, allocations may consume a whole power-of-2 block. In general, do NOT check available memory beforehand but only the outcome of allocators. Furthermore, prefer preallocating buffers.

@@ -27,7 +27,7 @@ void kernel_main(void) {
     fb_set_scale(fullscreen, 2 + text_size, 1 + text_size);
     fullscreen->bg_color = fullscreen->DEFAULT_BG;
 
-    uint32_t toolbar_size = 100;
+    uint32_t toolbar_size = 10;
     fullscreen->x = 20;
     fullscreen->y = 180;
     fullscreen->width  = 60 * 16;
