@@ -40,11 +40,7 @@ Type *help* and enter in the main terminal to see the language's basic construct
 
 Below is an example, where *app* is used to create an application handle and *args* listens to the input stream of the application to re-run it based on inputs. App and file commands create a handle string that can be used. The second command opens a file and sends the file handle to the application handle.
 
-```rust
-let myapp|app {image|args}
-to (myapp) (file logo.bmp)
-```
-
+![docs/example.png](docs/example.png)
 
 ## 🪛 Toolchain
 

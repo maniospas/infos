@@ -30,14 +30,18 @@ void console_preprocess(Application *app) {
 
         // --- track brackets ---
         if (*src == '{') {
+            if(bracket_depth==1)
+                processed[pos++] = *src++;
+            else 
+                src++; 
             bracket_depth++;
-            src++; 
-            //processed[pos++] = *src++;
             continue;
         } else if (*src == '}') {
+            if(bracket_depth==2)
+                processed[pos++] = *src++;
+            else 
+                src++; 
             bracket_depth--;
-            src++; 
-            //processed[pos++] = *src++;
             continue;
         }
 
@@ -272,7 +276,7 @@ void console_execute_overwrite(Application *app) {
         const char *path = cmd + 5;
         while (*path == ' ') path++;
         if (!*path) {
-            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing path. Example: open /home/picture.bmp\n");
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing path. Example: file logo.bmp\n");
             return;
         }
 
