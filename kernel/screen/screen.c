@@ -239,26 +239,8 @@ void fb_clearline(Window *win, size_t line_start_cursor_x) {
     win->cursor_x = win->x + margin;
 }
 
-
-void fb_put_char(Window* win, char c) {
-    if (!fb_addr) return;
-
-    if (c == '\n') {
-        win->cursor_x = win->x + margin;
-        win->cursor_y += CHAR_H;
-        return;
-    }
-
-    const FontInfo* fontinfo = get_best_font(font_size);
-    uint32_t fw = fontinfo->width;
-    uint32_t fh = fontinfo->height;
-
-    if ((uint8_t)c < fontinfo->first || (uint8_t)c > fontinfo->last)
-        return; // Ignore unsupported characters
-    if(win->height<2*CHAR_H+margin*2)
-        return;
-    // Handle scrolling
-    while (win->cursor_y + CHAR_H + margin > win->y + win->height) {
+static inline void scroll(Window* win) {
+    while (win->cursor_y + CHAR_H > win->y + win->height - margin) {
         // Amount by which we need to scroll up so that bottom aligns at y + height - margin
         uint32_t scroll_amount = (win->cursor_y + CHAR_H + margin) - (win->y + win->height);
 
@@ -276,13 +258,36 @@ void fb_put_char(Window* win, char c) {
         // Clear the newly exposed area at the bottom
         for (uint32_t y = win->y + win->height - scroll_amount; y < win->y + win->height; y++) {
             for (uint32_t x = win->x+1; x < win->x + win->width-1; x++) {
-                fb_addr[y * fb_width + x] = win->bg_color;
+                fb_addr[y * fb_width + x] = 0X1F1F1F;
             }
         }
 
         // Move the cursor up by the same scroll amount
         win->cursor_y -= scroll_amount;
     }
+}
+
+
+void fb_put_char(Window* win, char c) {
+    if (!fb_addr) return;
+
+    if (c == '\n') {
+        win->cursor_x = win->x + margin;
+        win->cursor_y += CHAR_H;
+        //scroll(win);
+        return;
+    }
+
+    const FontInfo* fontinfo = get_best_font(font_size);
+    uint32_t fw = fontinfo->width;
+    uint32_t fh = fontinfo->height;
+
+    if ((uint8_t)c < fontinfo->first || (uint8_t)c > fontinfo->last)
+        return; // Ignore unsupported characters
+    if(win->height<2*CHAR_H+margin*2)
+        return;
+    // Handle scrolling
+    scroll(win);
 
 
     // Render character
@@ -329,6 +334,7 @@ void fb_put_char(Window* win, char c) {
     if (win->cursor_x + CHAR_W >= fb_width - margin) {
         win->cursor_x = win->x + margin;
         win->cursor_y += CHAR_H;
+        scroll(win);
     }
 }
 

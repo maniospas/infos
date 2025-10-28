@@ -3,74 +3,65 @@
 #define CONSOLE_EXECUTE_OK 0
 #define CONSOLE_EXECUTE_OOM 1
 #define CONSOLE_EXECUTE_RUNTIME_ERROR 2
-// Execute subcommand and capture output (defensive version)
-static size_t console_run_subcommand(Application *app, const char *subcmd, char *out, size_t out_limit) {
-    if (!app || !subcmd || !out || out_limit == 0)
-        return 0;
 
-    Application temp = *app;
+// Execute subcommand and capture output
+static size_t console_run_subcommand(Application *app, const char *subcmd, char *out, size_t out_limit) {
+    Application temp = *app; // stack copy
     temp.data = subcmd;
     temp.output = out;
     temp.output_state = 0;
-
-    memset(out, 0, out_limit);
+    out[0] = 0;
+    for (size_t i = 0; i < out_limit; i++)
+        out[i] = 0;
     console_execute(&temp);
-
-    // Compute actual output length safely
     size_t len = 0;
     while (len < out_limit && out[len])
         len++;
-
-    // Trim trailing newlines
-    while (len > 0 && (out[len - 1] == '\n' || out[len - 1] == '\r'))
-        out[--len] = 0;
-
-    if (len >= out_limit)
-        len = out_limit - 1;
-
+    while (len > 0 && (out[len - 1] == '\n' || out[len - 1] == '\r')) {
+        out[len - 1] = 0;
+        len--;
+    }
     return len;
 }
 
-
 int console_preprocess(Application *app) {
-    if (!app || !app->data)
-        return CONSOLE_EXECUTE_RUNTIME_ERROR;
-
     const char *src = app->data;
-    char *processed = malloc(APPLICATION_MESSAGE_SIZE);
-    if (!processed)
+    char* processed = malloc(APPLICATION_MESSAGE_SIZE);
+    if(!processed) 
         return CONSOLE_EXECUTE_OOM;
     memset(processed, 0, APPLICATION_MESSAGE_SIZE);
-
     size_t pos = 0;
     int bracket_depth = 0;
-
     while (*src && pos < APPLICATION_MESSAGE_SIZE - 1) {
 
-        // --- track brackets safely ---
+        // --- track brackets ---
         if (*src == '{') {
-            if (bracket_depth == 1 && pos < APPLICATION_MESSAGE_SIZE - 1)
-                processed[pos++] = *src;
-            src++;
+            if(bracket_depth==1)
+                processed[pos++] = *src++;
+            else 
+                src++; 
             bracket_depth++;
             continue;
         } else if (*src == '}') {
-            if (bracket_depth == 2 && pos < APPLICATION_MESSAGE_SIZE - 1)
-                processed[pos++] = *src;
-            src++;
+            if(bracket_depth==2)
+                processed[pos++] = *src++;
+            else 
+                src++; 
             bracket_depth--;
             continue;
         }
 
-        // --- handle subcommands ---
         if (!bracket_depth && (*src == '(' || *src == '|')) {
-            char type = *src++;
-            while (*src == ' ') src++; // consume spaces
+            char type = *src;
+            src++; // skip '(' or '|'
+
+            // consume spaces after operator
+            while (*src == ' ') src++;
 
             const char *start = src;
             int depth = (type == '(');
 
-            // find subcommand end
+            // find end of subcommand
             while (*src && ((type == '(' && depth > 0) || (type == '|' && *src != '\n' && *src != '\r'))) {
                 if (type == '(') {
                     if (*src == '(') depth++;
@@ -82,63 +73,45 @@ int console_preprocess(Application *app) {
 
             if (type == '(' && depth != 0) {
                 fb_write_ansi(app->window, "\x1b[31mERROR\x1b[0m Unmatched '('.\n");
-                free(processed);
                 return CONSOLE_EXECUTE_RUNTIME_ERROR;
             }
 
-            size_t inner_len = src - start;
-            if (inner_len >= APPLICATION_MESSAGE_SIZE)
-                inner_len = APPLICATION_MESSAGE_SIZE - 1;
-
-            // Allocate inner and subout dynamically
-            char *inner = malloc(inner_len + 1);
-            if (!inner) {
-                free(processed);
-                return CONSOLE_EXECUTE_OOM;
+            // extract subcommand text
+            size_t inner_len = (type == '(') ? (src - start) : (src - start);
+            char inner[APPLICATION_MESSAGE_SIZE];
+            size_t i = 0;
+            while (i < inner_len && i < APPLICATION_MESSAGE_SIZE - 1) {
+                inner[i] = start[i];
+                i++;
             }
-            memcpy(inner, start, inner_len);
-            inner[inner_len] = 0;
-
-            char *subout = malloc(APPLICATION_MESSAGE_SIZE);
-            if (!subout) {
-                free(inner);
-                free(processed);
-                return CONSOLE_EXECUTE_OOM;
-            }
-            memset(subout, 0, APPLICATION_MESSAGE_SIZE);
+            inner[i] = 0;
 
             // execute subcommand
+            char subout[APPLICATION_MESSAGE_SIZE];
             size_t out_len = console_run_subcommand(app, inner, subout, APPLICATION_MESSAGE_SIZE);
-            if (out_len >= APPLICATION_MESSAGE_SIZE)
-                out_len = APPLICATION_MESSAGE_SIZE - 1;
 
-            // insert space if previous isn't whitespace
+            // insert space if previous character isn't whitespace
             if (pos > 0 && processed[pos - 1] != ' ' && pos < APPLICATION_MESSAGE_SIZE - 1)
                 processed[pos++] = ' ';
 
-            // append result safely
-            size_t copy_len = out_len;
-            if (pos + copy_len >= APPLICATION_MESSAGE_SIZE)
-                copy_len = APPLICATION_MESSAGE_SIZE - pos - 1;
+            // append result
+            for (size_t j = 0; j < out_len && pos < APPLICATION_MESSAGE_SIZE - 1; j++)
+                processed[pos++] = subout[j];
 
-            memcpy(processed + pos, subout, copy_len);
-            pos += copy_len;
-
-            free(inner);
-            free(subout);
-
-            // skip closing parenthesis
+            // skip ')' if present
             if (type == '(' && *src == ')') src++;
 
-            while (*src == ' ') src++; // skip trailing spaces
+            // consume spaces after subcommand
+            while (*src == ' ') src++;
 
+            // also add one space separator if next char isn't whitespace or end
             if (*src && *src != ' ' && pos < APPLICATION_MESSAGE_SIZE - 1)
                 processed[pos++] = ' ';
 
             continue;
         }
 
-        // --- skip redundant spaces before pipe ---
+        // skip spaces before pipe
         if (*src == ' ') {
             const char *peek = src + 1;
             while (*peek == ' ') peek++;
@@ -153,9 +126,9 @@ int console_preprocess(Application *app) {
 
     processed[pos] = 0;
 
-    // copy back safely
-    size_t i = 0;
+    // copy back
     char *dst = (char*)app->data;
+    size_t i = 0;
     while (processed[i] && i < APPLICATION_MESSAGE_SIZE - 1) {
         dst[i] = processed[i];
         i++;
@@ -167,33 +140,27 @@ int console_preprocess(Application *app) {
 }
 
 
+
 int console_execute(Application *app) {
-    if (!app || !app->data)
-        return CONSOLE_EXECUTE_RUNTIME_ERROR;
-
-    char *copy = malloc(APPLICATION_MESSAGE_SIZE);
-    if (!copy)
+    //fb_write(app->window, "Console execute\n");
+    char* processed = malloc(APPLICATION_MESSAGE_SIZE);
+    if(!processed)
         return CONSOLE_EXECUTE_OOM;
-    memset(copy, 0, APPLICATION_MESSAGE_SIZE);
-
+    char* prev = app->data;
     size_t i = 0;
     while (app->data[i] && i < APPLICATION_MESSAGE_SIZE - 1) {
-        copy[i] = app->data[i];
+        processed[i] = app->data[i];
         i++;
     }
-    copy[i] = 0;
-
-    char *prev = app->data;
-    app->data = copy;
-
+    processed[i] = 0;
+    app->data = processed;
     int ret = console_execute_overwrite(app);
-
     app->data = prev;
-    free(copy);
-
-    return ret ? ret : CONSOLE_EXECUTE_OK;
+    free(processed);
+    if(ret)
+        return ret;
+    return CONSOLE_EXECUTE_OK;
 }
-
 
 int console_execute_overwrite(Application *app) {
     int ret = console_preprocess(app);

@@ -7,13 +7,14 @@ void poweroff(Window *win) {
     for (;;) __asm__("hlt");
 }
 
+extern uint32_t margin;
+
 void console_prompt(Window* win) {
     fb_write_ansi(win, "\x1b[33m");
     fb_write(win, fat32_get_current_path());
     fb_write(win, ": ");
     fb_write_ansi(win, "\x1b[0m");
 }
-
 
 void widget_run(Application* app, int appid) {
     if(!app->window || !app->window->width || !app->window->height)

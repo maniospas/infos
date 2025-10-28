@@ -114,8 +114,9 @@ void kernel_main(void) {
             app_run(&apps[i], i);
         apps[0].data[0] = '\0';// always read data
         console_prompt(fullscreen);
-        margin += 40;
         console_readline(fullscreen, apps[0].data, APPLICATION_MESSAGE_SIZE);
+        margin += 40;
+        fullscreen->cursor_x = fullscreen->x + margin;
         if (!strcmp(apps[0].data, "clear")) 
             margin -= 40;
         else
