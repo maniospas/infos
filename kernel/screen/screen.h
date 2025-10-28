@@ -15,6 +15,7 @@ typedef struct __attribute__((packed)) {
     uint32_t bg_color;
     uint32_t scale_nominator;
     uint32_t scale_denominator;
+    uint32_t no_bg_mode;
 } Window;
 
 

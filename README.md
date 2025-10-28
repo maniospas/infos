@@ -9,16 +9,16 @@ LetOS (pronounced *lettuce*) is a lightweight operating system featuring a keybo
 
 ## 💿 Running the ISO
 
-Run *letOS.iso* by one of these options:
-- unpacking the letos.iso image into a bootable USB device (VirtualBox or VMware can be alternatives to this)
-- running virtual environment like QEMU per the following command
+Run *letOS.iso* by following one of these options:
+- unpack the letos.iso image into a bootable USB device (VirtualBox or VMware can be alternatives to this)
+- run a virtual environment like QEMU per the following command
 
 ```
 qemu-system-x86_64 -cdrom "letOS.iso" -boot d -m 512M -vga virtio -display sdl,gl=on -full-screen \
     -drive file="fat32.img",format=raw,media=disk 
 ```
 
-Use *-accel hvf* instead of *-enable-kvm* in windows.
+Use *-accel hvf* instead of *-enable-kvm* in Windows. If your hardware does not support virtualization, or if you have not installed the necessary requirements, you can skip that command at the expense of speed.
 
 
 ## 🖥️ Interface and Environment
@@ -32,11 +32,9 @@ From this console, you can start processes, send commands, and write or execute 
 
 ## 🥬 The lettuce language
 
-Lettuce is a small, interpreted programming language built directly into letOS. In a sense, the operating system *is* the language and conversely.
+Lettuce is a small, interpreted programming language built directly into letOS. In a sense, the operating system *is* the language and conversely. This enables interactive programming and system control from within the console. Programs can manipulate data, draw to the screen, and interact with running processes.
 
-It enables interactive programming and system control from within the console. Programs can manipulate data, draw to the screen, and interact with running processes.
-
-Type *help* and enter in the main terminal to see the language's basic constructs and usage rules. Mainly, command take the form of a name followed by space-separated arguments like so: `let a 1` to set the text *"1"* to a variable *a*. Commands output values, so enclose them in parentheses to make such evaluation. For example, `print (a)` evaluates *a* and transforms this to `print 1`, eventually printing the value to the console. You can use the `|` operator as basically an open parenthesis that ends at end of line. Brackets are used to prevent one evaluation.
+Type *help* and enter in the main terminal to see the language's basic constructs and usage rules. Mainly, commands take the form of a name followed by space-separated arguments. For example, `let a 1` sets the text *"1"* to a variable with name *a*. Commands return values, so enclose them in parentheses to make such evaluation. For example, `print (a)` evaluates *a* and transforms this to `print 1`, eventually printing the value to the console. You can use the `|` operator as basically an open parenthesis that ends at end of line. Brackets are used to prevent one evaluation.
 
 Below is an example, where *app* is used to create an application handle and *args* listens to the input stream of the application to re-run it based on inputs. App and file commands create a handle string that can be used. The second command opens a file and sends the file handle to the application handle.
 
@@ -61,4 +59,4 @@ After completing these steps, you can build and run letOS directly on any Linux 
 - Makefile — build and run automation
 - bootstrapping.txt — toolchain setup instructions
 
-⚠️ **Development note:** While developing, note that *malloc* or *realloc* are expected to return NULL if they try to allocate more than half (or even lower numbers) of remainder memory. This is due to the buddy memory management system. Furthermore, allocations may consume a whole power-of-2 block. In general, do NOT check available memory beforehand but only the outcome of allocators. Furthermore, prefer preallocating buffers.
+⚠️ **Development notice:** While developing new content, *malloc* or *realloc* are expected to return NULL if they try to allocate more than half (or even lower numbers) of remainder memory. This is due to the buddy memory management system. Furthermore, allocations are rounded up to the next power-of-two size, and all consume at least 4KB. In general, do NOT check available memory beforehand but only the outcome of allocators. Furthermore, prefer preallocating buffers.

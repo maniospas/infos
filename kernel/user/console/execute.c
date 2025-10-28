@@ -706,7 +706,7 @@ void console_execute_overwrite(Application *app) {
         const char* name = cmd;
         while (*name == ' ') name++;
         if (!*name) {
-            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing variable name. Type \033[32mhelp\033[0m for help.\n");
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m No variable given.\n");
             return;
         }
 
@@ -720,7 +720,6 @@ void console_execute_overwrite(Application *app) {
         if (idx < 0 || !var_table[idx].value) {
             fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Unknown variable: ");
             fb_write(win, varname);
-            fb_write_ansi(win, ". Type \033[32mhelp\033[0m for help.\n");
             return;
         }
 

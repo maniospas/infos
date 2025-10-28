@@ -39,13 +39,13 @@ void kernel_main(void) {
     //fullscreen->cursor_y -= 20;
 
     // Initialize variables
-    size_t MAX_VARS = 128; 
-    char* vars[MAX_VARS];
+    size_t MAX_VARS = 4096/sizeof(char*); 
+    char** vars = malloc(MAX_VARS*sizeof(char*));
     for (uint32_t i = 0; i < MAX_VARS; i++)
         vars[i] = NULL; 
 
     // Initialize apps
-    MAX_APPLICATIONS = 16;
+    MAX_APPLICATIONS = 4;
     apps = malloc(sizeof(Application)*MAX_APPLICATIONS);
     for (uint32_t i = 0; i < MAX_APPLICATIONS; i++) {
         apps[i].MAX_VARS = MAX_VARS;
@@ -53,10 +53,6 @@ void kernel_main(void) {
         app_init(&apps[i], NULL, NULL);
     }
     apps[0].window = fullscreen;
-
-    // Initialize events
-    keyboard_init();
-    interrupts_init();
 
     // Initialize disk
     uint32_t partition_lba_start = find_fat32_partition();
@@ -70,6 +66,10 @@ void kernel_main(void) {
     //     for(int i=0;i<1024*1024;i++)
     //         ch[i] = '\0';
 
+
+    // Initialize events
+    keyboard_init();
+    interrupts_init();
     // Event loop
 
     for (;;) {

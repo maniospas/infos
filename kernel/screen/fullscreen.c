@@ -20,4 +20,5 @@ void init_fullscreen(Window *fullscreen) {
     fullscreen->bg_color = fullscreen->DEFAULT_BG;
     fullscreen->scale_nominator = 1;
     fullscreen->scale_denominator = 1;
+    fullscreen->no_bg_mode = 1;
 }

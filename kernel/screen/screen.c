@@ -214,10 +214,46 @@ void fb_put_char(Window* win, char c) {
 
     if ((uint8_t)c < fontinfo->first || (uint8_t)c > fontinfo->last)
         return; // Ignore unsupported characters
+    if(win->height<CHAR_H+margin*2)
+        return;
+    // Handle scrolling
+    // Handle scrolling
+    while (win->cursor_y + CHAR_H + margin > win->y + win->height) {
+        // Amount by which we need to scroll up so that bottom aligns at y + height - margin
+        uint32_t scroll_amount = (win->cursor_y + CHAR_H + margin) - (win->y + win->height);
+
+        // Clamp scroll amount to not exceed CHAR_H (usually 1 line)
+        if (scroll_amount > CHAR_H)
+            scroll_amount = CHAR_H;
+
+        // Scroll the framebuffer up by scroll_amount
+        for (uint32_t y = win->y; y < win->y + win->height - scroll_amount; y++) {
+            for (uint32_t x = win->x; x < win->x + win->width; x++) {
+                fb_addr[y * fb_width + x] = fb_addr[(y + scroll_amount) * fb_width + x];
+            }
+        }
+
+        // Clear the newly exposed area at the bottom
+        for (uint32_t y = win->y + win->height - scroll_amount; y < win->y + win->height; y++) {
+            for (uint32_t x = win->x+1; x < win->x + win->width-1; x++) {
+                fb_addr[y * fb_width + x] = win->bg_color;
+            }
+        }
+
+        // Move the cursor up by the same scroll amount
+        win->cursor_y -= scroll_amount;
+    }
+
 
     // Render character
-    for (uint32_t y = 0; y < CHAR_H && win->cursor_y + y < win->y + win->height; y++) {
-        for (uint32_t x = 0; x < CHAR_W && win->cursor_x + x < win->x + win->width; x++) {
+    // Render character safely
+    for (uint32_t y = 0; y < CHAR_H; y++) {
+        int draw_y = win->cursor_y + y;
+        if (draw_y < 0 || draw_y >= (int)fb_height) continue;
+
+        for (uint32_t x = 0; x < CHAR_W; x++) {
+            int draw_x = win->cursor_x + x;
+            if (draw_x < 0 || draw_x >= (int)fb_width) continue;
 
             uint32_t src_x = (uint32_t)(x * invscale);
             uint32_t src_y = (uint32_t)(y * invscale);
@@ -225,49 +261,34 @@ void fb_put_char(Window* win, char c) {
                 continue;
 
             uint8_t bit = 0;
-
             if (fw == FONT8X16_WIDTH) {
                 const uint8_t (*font)[FONT8X16_WIDTH][FONT8X16_HEIGHT] =
                     (const void *)fontinfo->data;
                 bit = font[(uint8_t)c - fontinfo->first][src_x][src_y];
-            } 
-            else if (fw == FONT16X32_WIDTH) {
+            } else if (fw == FONT16X32_WIDTH) {
                 const uint8_t (*font)[FONT16X32_WIDTH][FONT16X32_HEIGHT] =
                     (const void *)fontinfo->data;
                 bit = font[(uint8_t)c - fontinfo->first][src_x][src_y];
-            } 
-            else {
+            } else {
                 const uint8_t (*font)[FONT32X64_WIDTH][FONT32X64_HEIGHT] =
                     (const void *)fontinfo->data;
                 bit = font[(uint8_t)c - fontinfo->first][src_x][src_y];
             }
 
             uint32_t color = bit ? win->fg_color : win->bg_color;
-            fb_putpixel(win->cursor_x + x, win->cursor_y + y, color);
+            if (!win->no_bg_mode && color == win->bg_color)
+                continue;
+
+            fb_putpixel(draw_x, draw_y, color);
         }
     }
+
 
     // Advance cursor
     win->cursor_x += CHAR_W;
     if (win->cursor_x + CHAR_W >= fb_width - margin) {
         win->cursor_x = win->x + margin;
         win->cursor_y += CHAR_H;
-    }
-
-    // Handle scrolling
-    if (win->cursor_y + CHAR_H >= win->y + win->height - margin && win->cursor_y >= CHAR_H) {
-        for (uint32_t y = win->y; y < win->y + win->height - CHAR_H; y++) {
-            for (uint32_t x = win->x; x < win->x + win->width; x++) {
-                fb_addr[y * fb_width + x] = fb_addr[(y + CHAR_H) * fb_width + x];
-            }
-        }
-
-        for (uint32_t y = win->y + win->height - CHAR_H; y < win->y + win->height; y++) {
-            for (uint32_t x = win->x; x < win->x + win->width; x++) {
-                fb_addr[y * fb_width + x] = win->bg_color;
-            }
-        }
-        win->cursor_y -= CHAR_H;
     }
 }
 
