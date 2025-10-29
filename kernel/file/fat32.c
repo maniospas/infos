@@ -721,6 +721,7 @@ size_t fat32_get_file_size(const char *path) {
 
     return is_file ? file_size : 0;
 }
+
 static FAT32_FileHandle fat32_open_files[MAX_OPEN_FILES];
 
 static int fat32_alloc_handle(void) {
@@ -738,7 +739,8 @@ void fat32_close_file(int handle) {
     fat32_open_files[handle].used = 0;
 }
 int fat32_open_file(const char *path) {
-    if (!path || !path[0]) return -1;
+    if (!path || !path[0]) 
+        return -1;
 
     uint32_t cluster = bpb.RootClus;
     char segment[256];

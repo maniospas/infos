@@ -39,7 +39,7 @@ void kernel_main(void) {
     //fullscreen->cursor_y -= 20;
 
     // Initialize variables
-    size_t MAX_VARS = 4096/sizeof(char*); 
+    size_t MAX_VARS = MAX_HASH_VARS;
     char** vars = malloc(MAX_VARS*sizeof(char*));
     if(!vars) {
         fb_write_ansi(fullscreen, "\033[31mERROR\033[0m Cannot initialize lettuce scripting.\n");
@@ -110,8 +110,11 @@ void kernel_main(void) {
         }
 
         // Run apps
+        uint32_t prev_margin = margin;
+        margin = 20;
         for (uint32_t i = 1; i < MAX_APPLICATIONS; i++) 
             app_run(&apps[i], i);
+        margin = prev_margin;
         apps[0].data[0] = '\0';// always read data
         console_prompt(fullscreen);
         console_readline(fullscreen, apps[0].data, APPLICATION_MESSAGE_SIZE);

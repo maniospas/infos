@@ -12,7 +12,7 @@ extern uint32_t margin;
 
 /* Keywords for syntax highlighting */
 static const char* keywords[] = {
-    "help","ls","cd","ps","clear","text",
+    "help","ls","cd","ps","clear",
     "app","kill","to","log","exit","let","read","print",
     "image","file","args"
 };
@@ -38,7 +38,7 @@ static inline char apply_shift(char c) {
 }
 
 static inline int is_delim(char c) {
-    return (c==' '||c=='('||c==')'||c=='['||c==']'||c=='{'||c=='}'||c=='|');
+    return (c==' '||c=='('||c==')'||c=='['||c==']'||c=='{'||c=='}'||c==':');
 }
 
 static inline const char* color_for_depth(int depth) {
@@ -83,14 +83,6 @@ static int matches_keyword(const char* buf, int start, int len) {
     return 0;
 }
 
-/* Utility to draw a colored word */
-static void draw_colored_word(Window* win, const char* word, int len, const char* color) {
-    fb_write_ansi(win, color);
-    for (int i = 0; i < len; i++)
-        fb_put_char(win, word[i]);
-    fb_write_ansi(win, RESET);
-}
-
 /* full-line render with syntax highlighting + caret overlay by reprinting same char */
 static void render_line(Window* win, const char* buf, size_t len, size_t cursor_pos, size_t line_start_x) {
     const int cw = (int)((font_size / 2.0f) * ((float)win->scale_nominator / (float)win->scale_denominator));
@@ -102,7 +94,6 @@ static void render_line(Window* win, const char* buf, size_t len, size_t cursor_
     if ((int)draw_len > capacity) draw_len = (size_t)capacity;
 
     size_t xpos[MAX_CMD_LEN + 1];
-    uint32_t fg_used[MAX_CMD_LEN];
     char depth_stack[128]; // track what opened each depth level
 
     fb_clearline(win, line_start_x);
@@ -116,13 +107,12 @@ static void render_line(Window* win, const char* buf, size_t len, size_t cursor_
         xpos[i] = win->cursor_x;
 
         /* Opening tokens: (, {, or | */
-        if (c == '(' || c == '{' || c == '|') {
+        if (c == '(' || c == '{' || c == ':') {
             if (depth < (int)(sizeof(depth_stack))) {
                 depth_stack[depth] = c;
             }
 
             fb_write_ansi(win, color_for_depth(depth));
-            fg_used[i] = win->fg_color;
             fb_put_char(win, c);
             fb_write_ansi(win, RESET);
             depth++;
@@ -131,19 +121,19 @@ static void render_line(Window* win, const char* buf, size_t len, size_t cursor_
         }
 
         /* Closing tokens: ) or } */
-        if (c == ')' || c == '}' || c == '|') {
+        if (c == ')' || c == '}' || c == ':') {
             int close_depth = depth;
             if (depth > 0) {
                 char opener = depth_stack[depth - 1];
 
-                if (c == '|') {
+                if (c == ':') {
                     // normal behavior — just close one pipe
-                    if (opener == '|') depth--;
+                    if (opener == ':') depth--;
                     close_depth = depth;
                 } else {
                     // find matching non-pipe opener
                     int match_depth = depth - 1;
-                    while (match_depth > 0 && depth_stack[match_depth] == '|')
+                    while (match_depth > 0 && depth_stack[match_depth] == ':')
                         match_depth--;
 
                     // color = color of that non-pipe opener
@@ -156,7 +146,6 @@ static void render_line(Window* win, const char* buf, size_t len, size_t cursor_
             }
 
             fb_write_ansi(win, color_for_depth(close_depth));
-            fg_used[i] = win->fg_color;
             fb_put_char(win, c);
             fb_write_ansi(win, RESET);
             i++;
@@ -174,15 +163,11 @@ static void render_line(Window* win, const char* buf, size_t len, size_t cursor_
             for (int k = 0; k < wlen; ++k) {
                 size_t idx = start + (size_t)k;
                 xpos[idx] = win->cursor_x;
-                fg_used[idx] = win->fg_color;
                 fb_put_char(win, buf[idx]);
             }
             if (is_kw) fb_write_ansi(win, RESET);
             continue;
         }
-
-        /* Everything else — spaces, punctuation, etc. */
-        fg_used[i] = win->fg_color;
         fb_put_char(win, c);
         i++;
     }

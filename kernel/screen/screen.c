@@ -160,7 +160,7 @@ void fb_window_border(Window *win, char* title, uint32_t color, int appid) {
         win->bg_color = win->DEFAULT_FG;
         fb_write(win, title);
         win->fg_color = 0x006600;
-        win->cursor_x = win->x+win->width-120;
+        win->cursor_x = win->x+win->width-180;
         if(appid>=0) {
             fb_write(win, " app");
             fb_write_dec(win, appid);
@@ -201,13 +201,13 @@ void fb_clear(Window *win) {
 void fb_clearline(Window *win, size_t line_start_cursor_x) {
     if (!fb_addr) return;
 
-    int sx = (int)line_start_cursor_x;
+    uint32_t sx = (int)line_start_cursor_x;
     if (sx < win->x + margin)
         sx = win->x + margin;
 
-    int sy = win->cursor_y;
-    int ex = win->x + win->width - margin;
-    int ey = sy + CHAR_H;
+    uint32_t sy = win->cursor_y;
+    uint32_t ex = win->x + win->width - margin;
+    uint32_t ey = sy + CHAR_H;
     uint32_t color = win->bg_color;
 
     // Clamp drawing to window bounds
@@ -222,10 +222,10 @@ void fb_clearline(Window *win, size_t line_start_cursor_x) {
     uint8_t g = (color >> 8)  & 0xFF;
     uint8_t b = (color >> 0)  & 0xFF;
 
-    for (int y = sy; y < ey; y++) {
-        if (y < 0 || y >= (int)fb_height) continue;
+    for (uint32_t y = sy; y < ey; y++) {
+        if (y >= fb_height) continue;
         uint8_t *row = (uint8_t *)fb_addr + y * fb_pitch;
-        for (int x = sx; x < ex && x < (int)fb_width; x++) {
+        for (uint32_t x = sx; x < ex && x < fb_width; x++) {
             size_t off = x * (fb_bpp / 8);
             row[off + 0] = b;
             row[off + 1] = g;
@@ -293,18 +293,17 @@ void fb_put_char(Window* win, char c) {
     // Render character
     // Render character safely
     for (uint32_t y = 0; y < CHAR_H; y++) {
-        int draw_y = win->cursor_y + y;
-        if (draw_y < 0 || draw_y >= fb_height) continue;
-
+        uint32_t draw_y = win->cursor_y + y;
+        if (draw_y >= fb_height) 
+            continue;
         for (uint32_t x = 0; x < CHAR_W; x++) {
-            int draw_x = win->cursor_x + x;
-            if (draw_x < 0 || draw_x >= fb_width) continue;
-
+            uint32_t draw_x = win->cursor_x + x;
+            if (draw_x >= fb_width) \
+                continue;
             uint32_t src_x = (uint32_t)(x * invscale);
             uint32_t src_y = (uint32_t)(y * invscale);
             if (src_x >= fw || src_y >= fh)
                 continue;
-
             uint8_t bit = 0;
             if (fw == FONT8X16_WIDTH) {
                 const uint8_t (*font)[FONT8X16_WIDTH][FONT8X16_HEIGHT] =
@@ -331,7 +330,7 @@ void fb_put_char(Window* win, char c) {
 
     // Advance cursor
     win->cursor_x += CHAR_W;
-    if (win->cursor_x + CHAR_W >= fb_width - margin) {
+    if (win->cursor_x + CHAR_W >= win->x+win->width - margin) {
         win->cursor_x = win->x + margin;
         win->cursor_y += CHAR_H;
         scroll(win);

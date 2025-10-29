@@ -9,7 +9,7 @@
 #include "../io.h"
 
 int console_execute(Application *win);
-int console_execute_overwrite(Application *win);
+int console_command(Application *app);
 void console_prompt(Window *win);
 int console_readline(Window *win, char *buffer, size_t size);
 void poweroff(Window *win);
@@ -21,6 +21,11 @@ void widget_terminate(Application* app, int appid);
 void fb_image_from_file(Window *win, int file_id, size_t target_width, size_t target_height) ;
 
 #define MAX_HASH_VARS 1024
+
+#define CONSOLE_EXECUTE_OK 0
+#define CONSOLE_EXECUTE_OOM 1
+#define CONSOLE_EXECUTE_RUNTIME_ERROR 2
+
 typedef struct {
     char* name;
     char* value;

@@ -34,9 +34,9 @@ From this console, you can start processes, send commands, and write or execute 
 
 Lettuce is a small, interpreted programming language built directly into letOS. In a sense, the operating system *is* the language and conversely. This enables interactive programming and system control from within the console. Programs can manipulate data, draw to the screen, and interact with running processes.
 
-Type *help* and enter in the main terminal to see the language's basic constructs and usage rules. Mainly, commands take the form of a name followed by space-separated arguments. For example, `let a 1` sets the text *"1"* to a variable with name *a*. Commands return values, so enclose them in parentheses to make such evaluation. For example, `print (a)` evaluates *a* and transforms this to `print 1`, eventually printing the value to the console. You can use the `|` operator as basically an open parenthesis that ends at end of line. Brackets are used to prevent one evaluation.
+Type *help* and enter in the main terminal to see the language's basic constructs and usage rules. Mainly, commands take the form of a name followed by space-separated arguments. For example, `let a 1` sets the text *"1"* to a variable with name *a*. Commands return values, so enclose them in parentheses to make such evaluation. For example, `print (a)` evaluates *a* and transforms the statement to `print 1`, eventually printing the value to the console. You can use the `:` as an open parenthesis that ends at the end of line. You could rewrite this paragraph's example as `print:a`. 
 
-Below is an example, where *app* is used to create an application handle and *args* listens to the input stream of the application to re-run it based on inputs. App and file commands create a handle string that can be used. The second command opens a file and sends the file handle to the application handle.
+Below is an example, where *app* is used to create an application handle and *args* listens to the input stream of the application to re-run it based on inputs. App and file commands create a handle string that can be used. The second command opens a file and sends the file handle to the application handle. Brackets are used to prevent one evaluation, so that it keeps being performed inside the app later.
 
 ![docs/example.png](docs/example.png)
 
