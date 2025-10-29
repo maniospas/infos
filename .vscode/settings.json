@@ -57,6 +57,7 @@
         "system_error": "c",
         "text_encoding": "c",
         "typeinfo": "c",
-        "variant": "c"
+        "variant": "c",
+        "complex": "c"
     }
 }

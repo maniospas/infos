@@ -3,10 +3,11 @@
 int console_command(Application *app) {
     Window* win = app->window;
     char** vars = app->vars;
-    //fb_write(win, app->data);
-    //fb_write(win, "\n");
+    // fb_write(win, app->data);
+    // fb_write(win, "\n");
     size_t MAX_VARS = app->MAX_VARS;
     const char *cmd = app->data;
+    while (*cmd == ' ') cmd++;
     if (!strncmp(cmd, "let ", 4)) {
         const char* args = cmd + 4;
         while (*args == ' ') args++;
@@ -370,8 +371,7 @@ int console_command(Application *app) {
                 // Write app id directly into app->output (no temp buffer)
                 uint32_t id_val = i;
                 uint32_t div = 1;
-                while (id_val / div >= 10)
-                    div *= 10;
+                for(;id_val>div;div*=10);
                 size_t k = 3;
                 app->output[0] = 'a';
                 app->output[1] = 'p';
@@ -387,10 +387,11 @@ int console_command(Application *app) {
                 fb_write_ansi(win, "\033[32mOK\033[0m Created: app");
                 fb_write_dec(win, i);
                 fb_write(win, "\n");
-                return CONSOLE_EXECUTE_RUNTIME_ERROR;
+                return CONSOLE_EXECUTE_OK;
             }
         }
         fb_write_ansi(win, "\033[31mERROR\033[0m No free app slots available.\n");
+        return CONSOLE_EXECUTE_RUNTIME_ERROR;
     }
     else if (!strncmp(cmd, "to ", 3)) {
         const char *arg = cmd + 3;
