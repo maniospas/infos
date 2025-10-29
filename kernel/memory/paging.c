@@ -8,6 +8,9 @@ extern uint8_t* heap_base;
 extern uint64_t heap_size;
 extern uint64_t heap_used;
 
+extern uint64_t pml4_table[];
+uint64_t kernel_pml4 = 0;
+
 #define HEAP_VIRT_BASE 0x40000000ULL  // map heap here
 
 void paging_map_heap(void) {
@@ -26,3 +29,4 @@ void paging_map_heap(void) {
     heap_base = (uint8_t*)HEAP_VIRT_BASE;   // use virtual address going forward
     heap_size = virt_end - virt_start;
 }
+

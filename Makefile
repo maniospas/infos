@@ -19,6 +19,10 @@ KERNEL_CSRC := $(wildcard kernel/**/**/*.c kernel/**/*.c kernel/*.c)
 KERNEL_SSRC := $(wildcard kernel/**/*.s kernel/*.s)
 OBJ := $(BOOT_SRC:.s=.o) $(KERNEL_CSRC:.c=.o) $(KERNEL_SSRC:.s=.o)
 
+# === Trampoline paths ===
+TRAMP_ASM := kernel/smp/ap_trampoline.asm
+TRAMP_BIN := kernel/smp/ap_trampoline.bin
+
 # === Build Rules ===
 all: $(KERNEL) $(DISK_IMG)
 
@@ -37,10 +41,18 @@ kernel/%.o: kernel/%.c
 	@echo "  CC64    $<"
 	$(CC) $(CFLAGS64) -c $< -o $@
 
-# Link kernel
-$(KERNEL): $(OBJ)
+# === Trampoline Binary ===
+# Assemble trampoline from NASM 16-bit source into flat binary.
+$(TRAMP_BIN): $(TRAMP_ASM)
+	@echo "  TRAMP   $<"
+	$(AS) -f bin $< -o $@
+
+kernel/smp/smp_init.o: $(TRAMP_BIN)
+
+# Link kernel (depends on trampoline)
+$(KERNEL): $(OBJ) $(TRAMP_BIN)
 	@echo "  LD      $@"
-	$(LD) $(LDFLAGS) --no-warn-mismatch -o $@ $^
+	$(LD) $(LDFLAGS) --no-warn-mismatch -o $@ $(OBJ)
 
 # === ISO Creation ===
 $(ISO): $(KERNEL) grub.cfg
@@ -58,15 +70,11 @@ $(DISK_IMG): disk
 	mkfs.vfat -F 32 $(DISK_IMG)
 	mcopy -i $(DISK_IMG) -s disk/* ::
 
-
 # === Run Target ===
 run: $(ISO) $(DISK_IMG)
 	@echo "  QEMU (BIOS)"
 	qemu-system-x86_64 -cdrom "letOS.iso" -boot d -m 512M -vga virtio -display sdl,gl=on -full-screen \
     -drive file="fat32.img",format=raw,media=disk 
-
-# 	qemu-system-x86_64 -cdrom $(ISO) -boot d -m 512M -vga virtio -display sdl \
-# 		-drive file=$(DISK_IMG),format=raw,media=disk
 
 runtiny: $(ISO)
 	@echo "  QEMU (128 KB Tiny Mode)"
@@ -76,4 +84,4 @@ runtiny: $(ISO)
 # === Clean ===
 clean:
 	@echo "  CLEAN"
-	rm -rf $(OBJ) $(KERNEL) iso *.iso $(DISK_IMG)
+	rm -rf $(OBJ) $(KERNEL) $(ISO) iso $(DISK_IMG) $(TRAMP_BIN)

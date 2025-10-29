@@ -1,7 +1,7 @@
 #include "../console.h"
 #include "elf.h"
 
-extern int focus_id;
+extern uint32_t focus_id;
 
 int console_command(Application *app) {
     Window* win = app->window;
@@ -124,9 +124,7 @@ int console_command(Application *app) {
         if(id) {
             fb_write_ansi(win, "\x1b[32mOK\x1b[0m Focus to app ");
             fb_write_dec(win, id);
-            fb_write_ansi(win, "\n * ctrl+arrows to scroll");
-            fb_write_ansi(win, "\n * commands become app messages");
-            fb_write_ansi(win, "\n * :X runs X in console. Example: :go app0\n");
+            fb_write_ansi(win, "\n");
         }
         else
             fb_write_ansi(win, "\x1b[32mOK\x1b[0m Focus to system console (no scroll)\n");

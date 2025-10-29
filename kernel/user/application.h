@@ -25,9 +25,9 @@ COMMUNICATION PROTOCOL
 #define APPLICATION_MESSAGE_SIZE 4096
 
 typedef struct Application {
-    void (*run)(struct Application*, int appid);  // function pointer that receives itself
-    int (*save)(struct Application*, int appid);  // a signal that we need to save data
-    void (*terminate)(struct Application*, int appid);
+    void (*run)(struct Application*, uint32_t appid);  // function pointer that receives itself
+    int (*save)(struct Application*, uint32_t appid);  // a signal that we need to save data
+    void (*terminate)(struct Application*, uint32_t appid);
     char* data;                        // string data (ALWAYS NULL-TERMINATED)
     char* input;                       // NULL or an malloced array of APPLICATION_MESSAGE_SIZE
     char* output;                      // NULL or an malloced array of APPLICATION_MESSAGE_SIZE
@@ -38,8 +38,8 @@ typedef struct Application {
     size_t MAX_VARS;
 } Application;
 
-void app_init(Application* app, void (*func)(Application*, int appid), Window* win);
-void app_run(Application* app, int appid);
+void app_init(Application* app, void (*func)(Application*, uint32_t appid), Window* win);
+void app_run(Application* app, uint32_t appid);
 extern Application *apps;
 extern uint32_t MAX_APPLICATIONS;
 extern uint32_t text_size;

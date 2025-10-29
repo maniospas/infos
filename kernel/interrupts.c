@@ -1,3 +1,5 @@
+#include "memory/memory.h"   // for malloc()
+#include "screen/screen.h"
 #include "interrupts.h"
 
 #define IDT_SIZE 256
@@ -51,4 +53,52 @@ void interrupts_init(void) {
 
     // === Enable interrupts globally ===
     __asm__ volatile ("sti");
+}
+
+// Global descriptor pointer for SMP trampoline
+uint64_t gdt_descriptor = 0;
+
+// Dynamic GDT entries (allocated from heap)
+static uint64_t* gdt_entries = NULL;
+static struct GDTPointer gdtr;
+
+// Create a basic 64-bit flat GDT (code + data)
+void gdt_init(void) {
+    // Allocate GDT (3 entries, 8 bytes each = 24 bytes)
+    gdt_entries = (uint64_t*)malloc(3 * sizeof(uint64_t));
+    if (!gdt_entries) {
+        fb_write_ansi(NULL, "\033[31m[GDT ERROR]\033[0m Cannot allocate GDT.\n");
+        for (;;) __asm__("hlt");
+    }
+
+    gdt_entries[0] = 0x0000000000000000ULL; // Null
+    gdt_entries[1] = 0x00AF9A000000FFFFULL; // Kernel code
+    gdt_entries[2] = 0x00AF92000000FFFFULL; // Kernel data
+
+    gdtr.limit = (3 * sizeof(uint64_t)) - 1;
+    gdtr.base  = (uint64_t)gdt_entries;
+
+    // Export descriptor for SMP trampoline
+    gdt_descriptor = (uint64_t)&gdtr;
+
+    // Load GDT
+    asm volatile ("lgdt %0" :: "m"(gdtr));
+
+    // Refresh segment registers
+    asm volatile (
+        "mov $0x10, %%ax\n"
+        "mov %%ax, %%ds\n"
+        "mov %%ax, %%es\n"
+        "mov %%ax, %%fs\n"
+        "mov %%ax, %%gs\n"
+        "mov %%ax, %%ss\n"
+        "pushq $0x08\n"
+        "lea 1f(%%rip), %%rax\n"
+        "pushq %%rax\n"
+        "lretq\n"
+        "1:\n"
+        :::"rax"
+    );
+
+    fb_write_ansi(NULL, "\033[32m[GDT initialized]\033[0m\n");
 }

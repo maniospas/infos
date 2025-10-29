@@ -6,11 +6,12 @@
 #include "user/console.h"
 #include "user/application.h"
 #include "memory/memory.h" 
+#include "smp/smp.h"
 
 extern void* multiboot_info_ptr;
 uint32_t text_size = 1;
 extern uint32_t margin;
-int focus_id = 0;
+uint32_t focus_id = 0;
 
 __attribute__((noreturn))
 void kernel_main(void) {
@@ -34,7 +35,7 @@ void kernel_main(void) {
     fullscreen->width  = 50 * 16;
     fullscreen->height -= 40 + fullscreen->y + toolbar_size;
     size_t total_height = fullscreen->height;
-    fullscreen->height = 800;
+    fullscreen->height = 400;
     fb_clear(fullscreen);
     fb_set_scale(fullscreen, 2, 1);
     fb_window_border(fullscreen, "Console", 0x000000, 0);
@@ -82,6 +83,12 @@ void kernel_main(void) {
     // Initialize events
     keyboard_init();
     interrupts_init();
+
+    // fb_write_ansi(fullscreen, "\033[36mBooting primary CPU...\033[0m\n");
+
+    // smp_init();
+    // fb_write_ansi(fullscreen, "\033[32m[Boot] SMP initialization complete.\033[0m\n");
+
     // Event loop
 
     for (;;) {
@@ -94,8 +101,8 @@ void kernel_main(void) {
             }
 
             if (active_count > 0) {
-                uint32_t spacing_x = 40;        // horizontal gap between columns
-                uint32_t spacing_y = 55;        // original vertical spacing
+                uint32_t spacing_x = 20;        // horizontal gap between columns
+                uint32_t spacing_y = 70;        // original vertical spacing
                 uint32_t col_width = fullscreen->width;  // both columns same width
 
                 uint32_t left_x  = fullscreen->x;
@@ -145,25 +152,20 @@ void kernel_main(void) {
             }
         }
 
-
-
-
         // Run apps
         uint32_t prev_margin = margin;
         margin = 20;
         for (uint32_t i = 1; i < MAX_APPLICATIONS; i++) 
-            app_run(&apps[i], i);
+           app_run(&apps[i], i);
         margin = prev_margin;
         apps[0].data[0] = '\0';// always read data
         // console_prompt(fullscreen);
         // console_readline(fullscreen, apps[0].data, APPLICATION_MESSAGE_SIZE);
         Window* target = apps[0].window;//apps[focus_id].window ? apps[focus_id].window : fullscreen;
+        if(focus_id)
+            continue;
         console_prompt(target);
         int read_code = console_readline(target, apps[0].data, APPLICATION_MESSAGE_SIZE);
-        if(read_code==42) {
-            target->cursor_x = target->x+margin;
-            continue;
-        }
         margin += 40;
         fullscreen->cursor_x = fullscreen->x + margin;
         if (!strcmp(apps[0].data, "clear")) 

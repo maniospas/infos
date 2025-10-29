@@ -1,6 +1,6 @@
 #include "application.h"
 
-void app_init(Application* app, void (*func)(Application*, int appid), Window* win) {
+void app_init(Application* app, void (*func)(Application*, uint32_t appid), Window* win) {
     app->run = func;
     app->input = malloc(APPLICATION_MESSAGE_SIZE);
     app->output = malloc(APPLICATION_MESSAGE_SIZE);
@@ -13,7 +13,7 @@ void app_init(Application* app, void (*func)(Application*, int appid), Window* w
     app->output[0] = '\0';
 }
 
-void app_run(Application* app, int appid) {
+void app_run(Application* app, uint32_t appid) {
     if (app->run)
         app->run(app, appid);
 }

@@ -1,0 +1,2 @@
+set letos_app_max_count (int 8)
+set letos_app_max_mem   (int 4096)

@@ -53,7 +53,7 @@ static inline void replace_segment(
     buf[*len] = '\0';
 }
 
-extern int focus_id;
+extern uint32_t focus_id;
 
 int console_execute(Application *app) {
 
@@ -83,12 +83,6 @@ int console_execute(Application *app) {
             }
         }
     }
-
-
-
-
-
-
 
     char *buffer = malloc(TMP_SIZE);
     if(!buffer)

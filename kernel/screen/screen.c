@@ -126,7 +126,7 @@ void fb_putpixel(int x, int y, uint64_t color) {
     fb_addr[y*fb_width + x] = color;
 }
 
-void fb_window_border(Window *win, char* title, uint32_t color, int appid) {
+void fb_window_border(Window *win, char* title, uint32_t color, uint32_t appid) {
     uint32_t x0 = win->x;
     uint32_t y0 = win->y;
     uint32_t has_title = title && *title;
@@ -161,10 +161,8 @@ void fb_window_border(Window *win, char* title, uint32_t color, int appid) {
         fb_write(win, title);
         win->fg_color = 0x006600;
         win->cursor_x = win->x+win->width-180;
-        if(appid>=0) {
-            fb_write(win, " app");
-            fb_write_dec(win, appid);
-        }
+        fb_write(win, " app");
+        fb_write_dec(win, appid);
         fb_write(win, "\n");
         win->fg_color = win->DEFAULT_FG;
         win->bg_color = win->DEFAULT_BG;
