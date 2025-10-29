@@ -1,4 +1,7 @@
 #include "../console.h"
+#include "elf.h"
+
+extern int focus_id;
 
 int console_command(Application *app) {
     Window* win = app->window;
@@ -8,6 +11,7 @@ int console_command(Application *app) {
     size_t MAX_VARS = app->MAX_VARS;
     const char *cmd = app->data;
     while (*cmd == ' ') cmd++;
+
     if (!strncmp(cmd, "let ", 4)) {
         const char* args = cmd + 4;
         while (*args == ' ') args++;
@@ -59,23 +63,73 @@ int console_command(Application *app) {
         fb_write(win, "\n");
     }
     else if (!strcmp(cmd, "help")) {
-        fb_write_ansi(win, "Enter: run typed command\n(X) evaluates X\n{X} yields unevaluated X\n");
-        fb_write_ansi(win, "Left and right arrows move cursor\nCtrl+arrows skip words\n");
-        fb_write_ansi(win, "\033[32mhelp\033[0m     - Show this help\n");
-        fb_write_ansi(win, "\033[32mread\033[0m     - Read file or directory, up to 4KB\n");
-        fb_write_ansi(win, "\033[32mfile X\033[0m   - Open file from path X\n");
-        fb_write_ansi(win, "\033[32mcd\033[0m X     - Change dir, can start from \033[33m/home\033[0m\n");
-        //fb_write_ansi(win, "\033[32mcat\033[0m X    - Print file contents\n");
-        fb_write_ansi(win, "\033[32mps\033[0m       - Show memory & disk usage\n");
-        fb_write_ansi(win, "\033[32mclear\033[0m    - Clear screen\n");
-        //fb_write_ansi(win, "\033[32mtext\033[0m X   - Set font X among big, small, default\n");
-        fb_write_ansi(win, "\033[32mapp\033[0m X    - Keep running command X\n");
-        fb_write_ansi(win, "\033[32mkill\033[0m X   - Kills app or file handle X\n");
-        fb_write_ansi(win, "\033[32mto\033[0m X V   - Sends message V to app X's input\n");
-        fb_write_ansi(win, "\033[32margs\033[0m     - Retrieves last message from \033[32mto\033[0m\n");
-        fb_write_ansi(win, "\033[32mlet\033[0m  X V - Sets value V to variable X\n");
-        //fb_write_ansi(win, "\033[32mlog\033[0m      - Accumulates and prints messages\n");
-        fb_write_ansi(win, "\033[32mexit\033[0m     - Shut down\n");
+        fb_write_ansi(win, "\033[36menter\033[0m     - Run typed command\n");
+        fb_write_ansi(win, "\033[36m(\033[0mX\033[36m)\033[0m       - Evaluate X\n");
+        fb_write_ansi(win, "\033[36m{\033[0mX\033[36m}\033[0m       - X without evaluating inner \033[36m(\033[0m\033[36m)\033[0m\n");
+        fb_write_ansi(win, "\033[36mleft,right\033[0m- Move cursor, word move with \033[36mctrl\033[0m\n");
+        fb_write_ansi(win, "\033[36mup,down\033[0m   - Command history\n\n");
+        fb_write_ansi(win, "\033[32mhelp\033[0m      - Show this help\n");
+        fb_write_ansi(win, "\033[32mread\033[0m      - Read file or directory, up to 4KB\n");
+        fb_write_ansi(win, "\033[32mfile X\033[0m    - Open file from path X\n");
+        fb_write_ansi(win, "\033[32mcd\033[0m X      - Change dir, can start from \033[33m/home\033[0m\n");
+        //fb_write_ansi(win, "\033[32mcat\033[0m X     - Print file contents\n");
+        fb_write_ansi(win, "\033[32mps\033[0m        - Show memory, disk, and resources\n");
+        fb_write_ansi(win, "\033[32mls\033[0m        - List files in current directory\n");
+        fb_write_ansi(win, "\033[32mprint\033[0m X   - Print text X to the screen\n");
+        fb_write_ansi(win, "\033[32mimg\033[0m X w h - Show image from file handle X\n");
+        fb_write_ansi(win, "\033[32mclear\033[0m     - Clear screen\n");
+        //fb_write_ansi(win, "\033[32mtext\033[0m X    - Set font X among big, small, default\n");
+        fb_write_ansi(win, "\033[32mapp\033[0m X     - Keep running command X\n");
+        fb_write_ansi(win, "\033[32mkill\033[0m X    - Kills app or file handle X\n");
+        fb_write_ansi(win, "\033[32mto\033[0m X V    - Sends message V to app X's input\n");
+        fb_write_ansi(win, "\033[32margs\033[0m      - Retrieves last message from \033[32mto\033[0m\n");
+        fb_write_ansi(win, "\033[32mlet\033[0m  X V  - Sets value V to variable X\n");
+        //fb_write_ansi(win, "\033[32mlog\033[0m       - Accumulates and prints messages\n");
+        fb_write_ansi(win, "\033[32mexit\033[0m      - Shut down\n");
+    }
+    else if (!strncmp(cmd, "go ", 3)) {
+        const char *arg = cmd + 3;
+        while (*arg == ' ') arg++;
+        if (!*arg) {
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing app target. Example: go app1\n");
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
+        }
+        if (strncmp(arg, "app", 3) != 0) {
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Invalid target. Example: go app1\n");
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
+        }
+        arg += 3;
+        uint32_t id = 0;
+        const char *p = arg;
+        while (*p >= '0' && *p <= '9') {
+            id = id * 10 + (*p - '0');
+            p++;
+        }
+        if (p == arg || *p) {
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Invalid app ID. Example: go app1\n");
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
+        }
+        if (id == 0) {
+            focus_id = id;
+            fb_write_ansi(win, "\x1b[32mOK\x1b[0m Focus to system console (no scroll)\n");
+            return CONSOLE_EXECUTE_OK;
+        }
+        if (id >= MAX_APPLICATIONS || !apps[id].run) {
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Does not exist: app");
+            fb_write_dec(win, id);
+            fb_write(win, "\n");
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
+        }
+        focus_id = id;
+        if(id) {
+            fb_write_ansi(win, "\x1b[32mOK\x1b[0m Focus to app ");
+            fb_write_dec(win, id);
+            fb_write_ansi(win, "\n * ctrl+arrows to scroll");
+            fb_write_ansi(win, "\n * commands become app messages");
+            fb_write_ansi(win, "\n * :X runs X in console. Example: :go app0\n");
+        }
+        else
+            fb_write_ansi(win, "\x1b[32mOK\x1b[0m Focus to system console (no scroll)\n");
     }
     else if (!strcmp(cmd, "ps")) {
         uint64_t memory_size = memory_total_with_regions();
@@ -334,6 +388,10 @@ int console_command(Application *app) {
             fb_write_ansi(win, "\x1b[32mOK\x1b[0m Killed: app");
             fb_write_dec(win, id);
             fb_write(win, "\n");
+            if(focus_id==id) {
+                focus_id = 0;
+                fb_write_ansi(win, "\x1b[32mOK\x1b[0m Focus to system console (no scroll)\n");
+            }
         } else {
             fb_write_ansi(win, "\033[31mERROR\033[0m Cancelled by user.\n");
         }
@@ -353,6 +411,8 @@ int console_command(Application *app) {
                     fb_write_ansi(win, "\033[31mERROR\033[0m Not enough memory to start app.\n");
                     return CONSOLE_EXECUTE_RUNTIME_ERROR;
                 }
+                apps[i].window->scroll_limit = 1; // minimal scroll limit
+                apps[i].window->accumulated_scroll_limit = 0; // minimal scroll limit
                 apps[i].run = widget_run;
                 apps[i].save = NULL;
                 apps[i].terminate = widget_terminate;
@@ -473,6 +533,68 @@ int console_command(Application *app) {
             fb_write(win, "\n");
         }
     }
+    else if (!strncmp(cmd, "run ", 4)) {
+        const char *path = cmd + 3;
+        while (*path == ' ') path++;
+        if (!*path) {
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing program path. Example: run /home/hello.so\n");
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
+        }
+        const char *end = path;
+        while (*end && *end != ' ') end++;
+        char program_path[256];
+        size_t path_len = end - path;
+        if(path_len >= sizeof(program_path)) path_len = sizeof(program_path) - 4;
+        memcpy(program_path, path, path_len);
+        program_path[path_len++] = '.';
+        program_path[path_len++] = 's';
+        program_path[path_len++] = 'o';
+        program_path[path_len] = '\0';
+
+        while (*end == ' ') end++;
+        const char *args = *end ? end : "";
+        size_t file_size = fat32_get_file_size(program_path)+1;
+        if (!file_size) {
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m File not found: ");
+            fb_write(win, program_path);
+            fb_write(win, "\n");
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
+        }
+
+        void* elf_data = malloc(file_size);
+        if(!elf_data) {
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Not enough memory to load: ");
+            fb_write(win, program_path);
+            fb_write(win, "\n");
+            free(elf_data);
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
+        }
+        size_t read_bytes = fat32_read(elf_data, file_size, 0, program_path);
+        if (!read_bytes) {
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Failed to read: ");
+            fb_write(win, program_path);
+            fb_write(win, "\n");
+            free(elf_data);
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
+        }
+        fb_write_ansi(win, "\x1b[32mOK\x1b[0m Loaded ELF program (");
+        fb_write_dec(win, read_bytes);
+        fb_write_ansi(win, " bytes)\n");
+        uint8_t* mod_base = NULL;
+        typedef void (*entry_t)(void*, const char*);
+        entry_t main_entry = (entry_t)load_elf_module(win, elf_data, &mod_base);
+        if (!main_entry) {
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Missing or invalid main(void*, const char*).\n");
+            free(elf_data);
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
+        }
+        //fb_write_ansi(win, "\x1b[32mOK\x1b[0m Running program...\n");
+        main_entry(win, args);
+        //fb_write_ansi(win, "\n\x1b[32mOK\x1b[0m Program exited.\n");
+        free(elf_data);
+    }
+
+
     else if (!strncmp(cmd, "print ", 6)) {
         const char *val = cmd + 6;
         while (*val == ' ') val++;

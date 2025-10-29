@@ -267,6 +267,59 @@ static inline void scroll(Window* win) {
     }
 }
 
+void fb_scrollbar(Window *win, long pos, long size) {
+    if (!fb_addr) return;
+
+    // Clamp inputs to 0..10000 range
+    if (pos < 0) pos = 0;
+    if (pos > 10000) pos = 10000;
+    if (size < 0) size = 0;
+    if (size > 10000) size = 10000;
+
+    // Scrollbar geometry (inside border, half margin inward)
+    const uint32_t bar_width = margin / 2;
+    const uint32_t x0 = win->x + win->width - bar_width;
+    const uint32_t x1 = x0 + bar_width - 1;
+    const uint32_t y0 = win->y;
+    const uint32_t y1 = win->y + win->height - 1;
+    const uint32_t track_h = y1 - y0 + 1;
+
+    // Thumb height based on size (0..10000)
+    uint32_t thumb_h = (uint32_t)((track_h * size) / 10000);
+    if (thumb_h < 8) thumb_h = 8; // minimum size for visibility
+    if (thumb_h > track_h) thumb_h = track_h;
+
+    // Thumb position based on pos (0..10000)
+    uint32_t thumb_y0 = y0 + (uint32_t)(((track_h - thumb_h) * pos) / 10000);
+    uint32_t thumb_y1 = thumb_y0 + thumb_h;
+    if (thumb_y1 > y1) thumb_y1 = y1;
+
+    // Colors
+    const uint32_t track_color  = 0x444444;        // dark background
+    const uint32_t thumb_color  = 0xDDDDDD;        // blue thumb
+    const uint32_t border_color = win->DEFAULT_FG; // matches window border
+
+    // Draw scrollbar track
+    for (uint32_t y = y0; y <= y1; y++) {
+        for (uint32_t x = x0; x <= x1; x++) {
+            fb_putpixel(x, y, track_color);
+        }
+    }
+
+    // Draw scrollbar thumb
+    for (uint32_t y = thumb_y0; y <= thumb_y1 && y <= y1; y++) {
+        for (uint32_t x = x0 + 1; x < x1; x++) {
+            fb_putpixel(x, y, thumb_color);
+        }
+    }
+
+    // Draw scrollbar border lines
+    for (uint32_t y = y0; y <= y1; y++) {
+        fb_putpixel(x0, y, border_color);
+        fb_putpixel(x1, y, border_color);
+    }
+}
+
 
 void fb_put_char(Window* win, char c) {
     if (!fb_addr) return;
@@ -275,6 +328,11 @@ void fb_put_char(Window* win, char c) {
         win->cursor_x = win->x + margin;
         win->cursor_y += CHAR_H;
         //scroll(win);
+        return;
+    }
+
+    if(win->scroll_limit && win->cursor_y + CHAR_H > win->y + win->height - margin + win->scroll_limit) {
+        win->accumulated_scroll_limit += (win->y + win->height - margin + win->scroll_limit)-(win->cursor_y + CHAR_H);
         return;
     }
 

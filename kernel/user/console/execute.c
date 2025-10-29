@@ -53,7 +53,43 @@ static inline void replace_segment(
     buf[*len] = '\0';
 }
 
+extern int focus_id;
+
 int console_execute(Application *app) {
+
+    if (focus_id!=0 && app==&apps[0]) { // the console may send stuff to other apps
+        // Check if user wants to bypass focus
+        if (*app->data == ':') {
+            app->data[0] = ' ';
+        } 
+        else {
+            char* cmd = app->data;
+            // Forward command to focused app
+            if (focus_id < MAX_APPLICATIONS && apps[focus_id].run && apps[focus_id].window) {
+                size_t len = strlen(cmd);
+                if (len >= APPLICATION_MESSAGE_SIZE)
+                    len = APPLICATION_MESSAGE_SIZE - 1;
+                memcpy(apps[focus_id].input, cmd, len);
+                apps[focus_id].input[len] = '\0';
+                apps[focus_id].input_state = len;
+                fb_write_ansi(app->window, "\x1b[32mOK\x1b[0m Message sent to: app");
+                fb_write_dec(app->window, focus_id);
+                fb_write(app->window, "\n");
+                return CONSOLE_EXECUTE_OK;
+            } else {
+                fb_write_ansi(app->window, "\x1b[31mERROR\x1b[0m Focused app no longer exists.\n");
+                focus_id = 0;
+                return CONSOLE_EXECUTE_RUNTIME_ERROR;
+            }
+        }
+    }
+
+
+
+
+
+
+
     char *buffer = malloc(TMP_SIZE);
     if(!buffer)
         return CONSOLE_EXECUTE_OOM;

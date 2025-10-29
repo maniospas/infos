@@ -9,12 +9,13 @@
 
 extern uint32_t font_size;
 extern uint32_t margin;
+int shift = 0, ctrl = 0;
 
 /* Keywords for syntax highlighting */
 static const char* keywords[] = {
     "help","ls","cd","ps","clear",
     "app","kill","to","log","exit","let","read","print",
-    "image","file","args"
+    "image","file","args","go", "run"
 };
 #define NUM_KEYWORDS (sizeof(keywords)/sizeof(keywords[0]))
 
@@ -239,7 +240,6 @@ int console_readline(Window* win, char* buffer, size_t size) {
 
     memset(buffer, 0, size);
     size_t pos = 0, len = 0;
-    int shift = 0, ctrl = 0;
 
     size_t line_start_x = win->cursor_x;
     int capacity = line_capacity_chars(win, line_start_x);

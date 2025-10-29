@@ -21,4 +21,6 @@ void init_fullscreen(Window *fullscreen) {
     fullscreen->scale_nominator = 1;
     fullscreen->scale_denominator = 1;
     fullscreen->no_bg_mode = 1;
+    fullscreen->scroll_limit = 0;
+    fullscreen->accumulated_scroll_limit = 0;
 }

@@ -8,24 +8,60 @@ void poweroff(Window *win) {
 }
 
 extern uint32_t margin;
+extern int focus_id;
 
 void console_prompt(Window* win) {
     fb_write_ansi(win, "\x1b[33m");
     fb_write(win, fat32_get_current_path());
-    fb_write(win, ": ");
+    if(focus_id) {
+        fb_write(win, " [app");
+        fb_write_dec(win, focus_id);
+        fb_write(win, "] ");
+    }
+    else
+        fb_write(win, ": ");
     fb_write_ansi(win, "\x1b[0m");
 }
-
 void widget_run(Application* app, int appid) {
-    if(!app->window || !app->window->width || !app->window->height)
+    if (!app->window || !app->window->width || !app->window->height)
         return;
+    if(appid && focus_id!=appid) 
+        app->window->bg_color = app->window->DEFAULT_BG = 0X3F3F3F;
+    else
+        app->window->bg_color = app->window->DEFAULT_BG = 0X1F1F1F;
     fb_clear(app->window);
     fb_set_scale(app->window, 2, 1);
-    fb_window_border(app->window, " ", 0x000000, appid);
+    if(appid && focus_id!=appid) {
+        uint32_t saved_fg = app->window->DEFAULT_FG;
+        app->window->DEFAULT_FG = 0xAAAAAA;
+        fb_window_border(app->window, " ", 0x444444, appid);
+        app->window->DEFAULT_FG = saved_fg;
+    }
+    else 
+        fb_window_border(app->window, " ", 0x000000, appid);
     fb_set_scale(app->window, 3, 2);
     console_execute(app);
     fb_put_char(app->window, '\n');
+
+    // scrolling
+    long scroll_pos  = 0;
+    long scroll_size = 500;  // % thumb size
+    if (app->window->scroll_limit) {
+        long scroll_limit = app->window->scroll_limit+app->window->height;
+        long scrolled     = app->window->accumulated_scroll_limit;
+        if (scrolled < 0) scrolled = 0;
+        if (scrolled > scroll_limit) scrolled = scroll_limit;
+        scroll_pos = 10000-(scrolled * 10000) / scroll_limit;
+        if (scroll_pos < 0) scroll_pos = 0;
+        if (scroll_pos > 10000) scroll_pos = 10000;
+        if (scroll_size < 500)   scroll_size = 500;   // min 5%
+        if (scroll_size > 10000) scroll_size = 10000; // max 100%
+    }
+    if (app->window->accumulated_scroll_limit)
+        fb_scrollbar(app->window, scroll_pos, scroll_size);
+    app->window->accumulated_scroll_limit = 0;
 }
+
 
 void widget_terminate(Application* app, int appid) {
     if(!app->window || !app->window->width || !app->window->height)

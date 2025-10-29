@@ -58,6 +58,8 @@
         "text_encoding": "c",
         "typeinfo": "c",
         "variant": "c",
-        "complex": "c"
+        "complex": "c",
+        "letos.h": "c",
+        "elf.h": "c"
     }
 }
