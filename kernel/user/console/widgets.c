@@ -49,7 +49,7 @@ void widget_run(Application* app, uint32_t appid) {
         app->window->bg_color = app->window->DEFAULT_BG = 0X1F1F1F;
         
     fb_clear(app->window);
-    fb_set_scale(app->window, 2, 1);
+    fb_set_scale(app->window, 1, 1);
     if(appid && focus_id!=appid) {
         uint32_t saved_fg = app->window->DEFAULT_FG;
         app->window->DEFAULT_FG = 0xAAAAAA;
@@ -58,7 +58,7 @@ void widget_run(Application* app, uint32_t appid) {
     }
     else 
         fb_window_border(app->window, "", 0x000000, appid);
-    fb_set_scale(app->window, 3, 2);
+    fb_set_scale(app->window, 20, 16);
     console_execute(app);
     fb_put_char(app->window, '\n');
 

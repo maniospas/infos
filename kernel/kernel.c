@@ -27,14 +27,14 @@ void kernel_main(void) {
     init_fullscreen(fullscreen);
     fullscreen->bg_color = 0;
     fb_clear(fullscreen);
-    fb_set_scale(fullscreen, 6 + text_size, 1 + text_size);
-    fb_write_ansi(fullscreen, "\x1b[32mletOS\n\x1b[0m");
+    // fb_set_scale(fullscreen, 6 + text_size, 1 + text_size);
+    // fb_write_ansi(fullscreen, "\x1b[32mletOS\n\x1b[0m");
     fb_set_scale(fullscreen, 2 + text_size, 1 + text_size);
     fullscreen->bg_color = fullscreen->DEFAULT_BG;
 
     uint32_t toolbar_size = 10;
     fullscreen->x = 20;
-    fullscreen->y = 150;
+    fullscreen->y = 40;
     fullscreen->width  = 55 * 16;
     fullscreen->height -= 40 + fullscreen->y + toolbar_size;
     size_t total_height = fullscreen->height;
@@ -57,7 +57,7 @@ void kernel_main(void) {
     }
 
     // Initialize apps
-    MAX_APPLICATIONS = 6;
+    MAX_APPLICATIONS = 11;
     apps = malloc(sizeof(Application) * MAX_APPLICATIONS);
     if (!apps) {
         fb_write_ansi(fullscreen, "\033[31mERROR\033[0m Cannot initialize apps.\n");
