@@ -111,7 +111,7 @@ int console_command(Application *app) {
         }
         if (id == 0) {
             focus_id = id;
-            fb_write_ansi(win, "\x1b[32mOK\x1b[0m Focus to system console (no scroll)\n");
+            fb_write_ansi(win, "\x1b[32mOK\x1b[0m Focus to system console\n");
             return CONSOLE_EXECUTE_OK;
         }
         if (id >= MAX_APPLICATIONS || !apps[id].run) {
@@ -124,7 +124,7 @@ int console_command(Application *app) {
         if(id) {
             fb_write_ansi(win, "\x1b[32mOK\x1b[0m Focus to app ");
             fb_write_dec(win, id);
-            fb_write_ansi(win, "\n");
+            fb_write_ansi(win, " (esc to skip)\n");
         }
         else
             fb_write_ansi(win, "\x1b[32mOK\x1b[0m Focus to system console (no scroll)\n");
@@ -179,7 +179,7 @@ int console_command(Application *app) {
     else if (!strcmp(cmd, "clear")) {
         fb_clear(win);
         fb_set_scale(win, 2+text_size,1+text_size);
-        fb_window_border(win, NULL, 0x000000, 0);
+        //fb_window_border(win, NULL, 0x000000, 0);
     }
     else if (!strncmp(cmd, "file ", 5)) {
         const char *path = cmd + 5;

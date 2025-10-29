@@ -256,7 +256,7 @@ static inline void scroll(Window* win) {
         // Clear the newly exposed area at the bottom
         for (uint32_t y = win->y + win->height - scroll_amount; y < win->y + win->height; y++) {
             for (uint32_t x = win->x+1; x < win->x + win->width-1; x++) {
-                fb_addr[y * fb_width + x] = 0X1F1F1F;
+                fb_addr[y * fb_width + x] = win->DEFAULT_BG;
             }
         }
 

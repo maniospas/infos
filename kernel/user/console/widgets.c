@@ -53,11 +53,11 @@ void widget_run(Application* app, uint32_t appid) {
     if(appid && focus_id!=appid) {
         uint32_t saved_fg = app->window->DEFAULT_FG;
         app->window->DEFAULT_FG = 0xAAAAAA;
-        fb_window_border(app->window, " ", 0x444444, appid);
+        fb_window_border(app->window, "", 0x444444, appid);
         app->window->DEFAULT_FG = saved_fg;
     }
     else 
-        fb_window_border(app->window, "Esc: lose focus", 0x000000, appid);
+        fb_window_border(app->window, "", 0x000000, appid);
     fb_set_scale(app->window, 3, 2);
     console_execute(app);
     fb_put_char(app->window, '\n');
