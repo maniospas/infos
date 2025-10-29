@@ -7,6 +7,23 @@ LetOS (pronounced *lettuce*) is a lightweight operating system featuring a keybo
 **License:** Apache 2.0 - see [LICENSE.txt](LICENSE.txt)<br>
 **Maintainer:** Emmanouil Krasanakis (maniospas@hotmail.com)
 
+
+**🧱 Features**
+
+- [x] Elf executables (.so files)
+- [x] Hidden dirs
+- [x] Memory management
+- [ ] FAT32 read&write (status: read only for now)
+- [ ] Secure filesystem - probably custom on top of FAT32
+- [ ] Filepath executable access
+- [ ] BIPLAN language integration
+- [ ] Multicore (maybe this will never be supported)
+- [ ] Bare metal devices
+- [x] Software graphics
+- [ ] Bitmap images
+- [ ] Networking (up to http)
+
+
 ## 💿 Running the ISO
 
 Run *letOS.iso* by following one of these options:
