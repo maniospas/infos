@@ -20,7 +20,8 @@ LetOS (pronounced *lettuce*) is a lightweight operating system featuring a keybo
 - [ ] Multicore (maybe this will never be supported)
 - [ ] Bare metal devices
 - [x] Software graphics
-- [ ] Bitmap images
+- [x] Bitmap images
+- [ ] Zip and png
 - [ ] Networking (up to http)
 
 
