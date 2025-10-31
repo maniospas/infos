@@ -21,7 +21,7 @@ void update_layout(Window* fullscreen, Application* apps, uint32_t MAX_APPLICATI
 
     // Grid constants
     const uint32_t cols = 2;
-    const uint32_t row_height = 180;
+    const uint32_t row_height = 186;
     const uint32_t subcol_width = (right_width - spacing_x) / cols;
 
     // For each app slot (constant grid position)

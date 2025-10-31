@@ -37,3 +37,4 @@ void fb_image(Window *win, const void *data, size_t size, size_t target_width, s
 void fb_putpixel(int x, int y, uint64_t color);
 void fb_clearline(Window *win, size_t line_start_cursor_x);
 void fb_scrollbar(Window *win, long pos, long size); // pos and size are number 0-10000 corresponding to [0,1]
+void fb_draw_rect(Window *win, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t color);

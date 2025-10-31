@@ -19,6 +19,8 @@ int find_or_insert_var(const char* name);
 void widget_run(Application* app, uint32_t appid);
 void widget_terminate(Application* app, uint32_t appid);
 void fb_image_from_file(Window *win, int file_id, size_t target_width, size_t target_height) ;
+unsigned char get_char(Window* win);
+void lose_focus(Window* win);
 
 #define MAX_HASH_VARS 1024
 

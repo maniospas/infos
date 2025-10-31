@@ -147,8 +147,51 @@ int console_command(Application *app) {
         fb_write_dec(win, usage.total_mb);
         fb_write(win, "MB\n");
     }
-    else if (!strcmp(cmd, "ls")) 
-        fat32_ls(win, fat32_get_current_dir());
+    else if (!strcmp(cmd, "ls")) {
+        int selected = 0;
+        int max_entries = 4; // show up to 15 lines at once
+        if (app->window == apps[focus_id].window) {
+            apps[0].window->cursor_x = apps[0].window->x + 60;
+            fb_write_ansi(apps[0].window, "\033[32mControls: \033[0mUp,down,enter,esc\n");
+            apps[0].window->cursor_y += 5;
+        }
+        uint32_t win_start = win->cursor_y;
+
+        int max_index;
+
+        while (1) {
+            // clear list area before reprinting
+            fb_draw_rect(win, 1, win_start - win->y, win->width - 2, win->cursor_y - win_start, win->bg_color);
+            win->cursor_y = win_start;
+            fb_write_ansi(win, "\033[33m");
+            fb_write(win, fat32_get_current_path());
+            fb_write(win, "/");
+            fb_write_ansi(win, "\033[0m\n");
+            //fb_draw_rect(win, win->x+40, win->cursor_y-win->y-2, win->width-180, 2, win->fg_color);
+            max_index = fat32_ls(win, fat32_get_current_dir(), selected, max_entries);
+            if (max_index < 0) return CONSOLE_EXECUTE_OK;
+
+            // wait for input
+            uint8_t key = get_char(win);
+            if (key == 0 || key == 0x01) 
+                break;
+            if (key == KEY_ARROW_UP && selected > 0) 
+                selected--;
+            else if (key == KEY_ARROW_DOWN && selected < max_index) 
+                selected++;
+            else if (key == KEY_ENTER) {
+                // ENTER → change directory of selected item
+                char selected_name[256];
+                if (fat32_get_entry_name(fat32_get_current_dir(), selected, selected_name, sizeof(selected_name))) {
+                    fat32_cd(win, selected_name);
+                    selected = 0; // reset selection after cd
+                } 
+                else 
+                    fb_write_ansi(win, "\n\033[31mERROR\033[0m Invalid selection.\n");
+            }
+        }
+    }
+
     else if (!strncmp(cmd, "cd ", 3)) 
         fat32_cd(win, cmd + 3);
     // else if (!strncmp(cmd, "cat ", 4)) 
@@ -353,7 +396,7 @@ int console_command(Application *app) {
             return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
         if (id == 0) {
-            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Use \x1b[32mexit\x1b[0m to turn off the computer instead.\n");
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Use \x1b[32mexit\x1b[0m to power off instead.\n");
             return CONSOLE_EXECUTE_RUNTIME_ERROR;
         }
         if (!apps[id].run) {
@@ -594,12 +637,59 @@ int console_command(Application *app) {
 
 
     else if (!strncmp(cmd, "print ", 6)) {
-        const char *val = cmd + 6;
-        while (*val == ' ') val++;
-        if (*val) 
-            fb_write_ansi(win, val);
-        fb_write(win, " \n");
+        const char *text = cmd + 6;
+        while (*text == ' ') text++;
+        if (!*text) {
+            fb_write_ansi(win, "\x1b[31mERROR\x1b[0m Nothing to print.\n");
+            return CONSOLE_EXECUTE_RUNTIME_ERROR;
+        }
+        int total_lines = 0;
+        for (const char *p = text; *p; p++)
+            if (*p == '\n') total_lines++;
+
+        const int LINES_PER_PAGE = 12;
+        int current_line = 0;
+        if (total_lines <= LINES_PER_PAGE) {
+            fb_write_ansi(win, text);
+            if (text[strlen(text) - 1] != '\n')
+                fb_write(win, "\n");
+            return CONSOLE_EXECUTE_OK;
+        }
+        if (app->window == apps[focus_id].window) {
+            apps[0].window->cursor_x = apps[0].window->x + 60;
+            fb_write_ansi(apps[0].window, "\033[32mControls: \033[0mUp,down,esc\n");
+            apps[0].window->cursor_y += 5;
+        }
+        // for(int i=0;i<LINES_PER_PAGE;++i)
+        //     fb_write(win, "\n ");
+        // win->cursor_y -= (64*win->scale_nominator/win->scale_denominator);
+        uint32_t win_start = win->cursor_y;
+        while (1) {
+            fb_draw_rect(win, 1, win_start - win->y, win->width - 2, win->cursor_y - win_start, win->bg_color);
+            win->cursor_y = win_start;
+            const char *p = text;
+            int skip = 0;
+            while (*p && skip < current_line)
+                if (*p++ == '\n') skip++;
+            int lines_drawn = 0;
+            while (*p && lines_drawn < LINES_PER_PAGE) {
+                fb_put_char(win, *p);
+                if (*p == '\n') lines_drawn++;
+                p++;
+            }
+            if (lines_drawn < LINES_PER_PAGE)
+                break;
+            uint8_t key = get_char(win);
+            if (key == 0 || key == 0x01) 
+                break;
+            if (key == KEY_ARROW_UP && current_line > 0)
+                current_line--;
+            else if (key == KEY_ARROW_DOWN && current_line + LINES_PER_PAGE < total_lines)
+                current_line++;
+        }
+        fb_write(win, "\n");
     }
+
     else if (!strcmp(cmd, "args")) {
         const char *in = app->input;
         if (*in && app->input_state && *in!='\n') {

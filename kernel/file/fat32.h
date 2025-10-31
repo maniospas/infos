@@ -58,7 +58,7 @@ struct FAT32_Usage {
 
 int fat32_init(uint32_t partition_lba_start);
 uint32_t find_fat32_partition();
-void fat32_ls(Window* win, uint32_t dir_cluster);
+int fat32_ls(Window* win, uint32_t dir_cluster, int selected_index, int max_entries);
 void fat32_cd(Window* win, const char *path);
 void fat32_cat(Window* win, const char *filename);
 struct FAT32_Usage fat32_get_usage(void);
@@ -89,3 +89,4 @@ typedef struct {
 int    fat32_open_file(const char *path);
 void   fat32_close_file(int handle);
 size_t fat32_read_chunk(int handle, void *buf, size_t size, size_t position);
+int fat32_get_entry_name(uint32_t dir_cluster, int index, char *out, size_t out_size);

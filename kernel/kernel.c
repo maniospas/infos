@@ -84,11 +84,14 @@ void kernel_main(void) {
         update_layout(fullscreen, apps, MAX_APPLICATIONS, total_height);
 
         // Run apps
+        uint32_t prev_focus_id = focus_id;
         uint32_t prev_margin = margin;
-        margin = 20;
+        margin = 10;
         for (uint32_t i = 1; i < MAX_APPLICATIONS; i++) 
            app_run(&apps[i], i);
         margin = prev_margin;
+        if(!focus_id && prev_focus_id)
+            continue;
 
         apps[0].data[0] = '\0'; // always read data
         Window* target = apps[0].window;

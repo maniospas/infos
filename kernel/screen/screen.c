@@ -196,6 +196,33 @@ void fb_clear(Window *win) {
         }
     }
 }
+void fb_draw_rect(Window *win, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t color) {
+    if (!fb_addr) return;
+
+    // Compute absolute window-relative start/end coordinates
+    uint32_t start_x = win->x + x;
+    uint32_t start_y = win->y + y;
+    uint32_t end_x   = start_x + w;
+    uint32_t end_y   = start_y + h;
+
+    // Clip to framebuffer bounds
+    if (start_x >= fb_width || start_y >= fb_height)
+        return;
+
+    if (end_x > fb_width)  end_x = fb_width;
+    if (end_y > fb_height) end_y = fb_height;
+
+    // Fill rectangle using fb_putpixel
+    for (uint32_t yy = start_y; yy < end_y; yy++) {
+        for (uint32_t xx = start_x; xx < end_x; xx++) {
+            fb_putpixel(xx, yy, color);
+        }
+    }
+}
+
+
+
+
 void fb_clearline(Window *win, size_t line_start_cursor_x) {
     if (!fb_addr) return;
 

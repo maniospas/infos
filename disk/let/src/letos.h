@@ -29,6 +29,9 @@ extern void fb_write_dec(void* window, uint64_t num);
 extern void* malloc(size_t size);
 extern void* realloc(void* ptr, size_t size);
 extern void free(void* ptr);
+extern unsigned char get_char(Window* win); 
+// CONTRACT: if get_char returns 0x01 (ESC), terminate the app cycle (return from it)
+extern void lose_focus(Window* win);
 
 void main(Window*, const char*);
 #define prints(text) fb_write_ansi(window, text)
