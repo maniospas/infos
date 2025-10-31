@@ -124,7 +124,7 @@ int console_command(Application *app) {
         if(id) {
             fb_write_ansi(win, "\x1b[32mOK\x1b[0m Focus to app ");
             fb_write_dec(win, id);
-            fb_write_ansi(win, " (esc to skip)\n");
+            fb_write_ansi(win, "\n");
         }
         else
             fb_write_ansi(win, "\x1b[32mOK\x1b[0m Focus to system console (no scroll)\n");
@@ -149,7 +149,7 @@ int console_command(Application *app) {
     }
     else if (!strcmp(cmd, "ls")) {
         int selected = 0;
-        int max_entries = 4; // show up to 15 lines at once
+        int max_entries = 10; // show up to 15 lines at once
         if (app->window == apps[focus_id].window) {
             apps[0].window->cursor_x = apps[0].window->x + 60;
             fb_write_ansi(apps[0].window, "\033[32mControls: \033[0mUp,down,enter,esc\n");
@@ -452,7 +452,7 @@ int console_command(Application *app) {
                     fb_write_ansi(win, "\033[31mERROR\033[0m Not enough memory to start app.\n");
                     return CONSOLE_EXECUTE_RUNTIME_ERROR;
                 }
-                apps[i].window->scroll_limit = 1; // minimal scroll limit
+                apps[i].window->scroll_limit = 0;
                 apps[i].window->accumulated_scroll_limit = 0; // minimal scroll limit
                 apps[i].run = widget_run;
                 apps[i].save = NULL;
@@ -647,8 +647,8 @@ int console_command(Application *app) {
         for (const char *p = text; *p; p++)
             if (*p == '\n') total_lines++;
 
-        const int LINES_PER_PAGE = 12;
-        int current_line = 0;
+        const int LINES_PER_PAGE = 6;
+        int current_line = LINES_PER_PAGE;
         if (total_lines <= LINES_PER_PAGE) {
             fb_write_ansi(win, text);
             if (text[strlen(text) - 1] != '\n')
@@ -660,9 +660,10 @@ int console_command(Application *app) {
             fb_write_ansi(apps[0].window, "\033[32mControls: \033[0mUp,down,esc\n");
             apps[0].window->cursor_y += 5;
         }
-        // for(int i=0;i<LINES_PER_PAGE;++i)
-        //     fb_write(win, "\n ");
-        // win->cursor_y -= (64*win->scale_nominator/win->scale_denominator);
+        for(int i=0;i<=LINES_PER_PAGE;++i)
+            fb_write(win, "_\n");
+        win->cursor_y -= (64*win->scale_nominator/win->scale_denominator)*(LINES_PER_PAGE+1);
+        fb_write_ansi(win, "\033[33m[long print]\033[0m\n");
         uint32_t win_start = win->cursor_y;
         while (1) {
             fb_draw_rect(win, 1, win_start - win->y, win->width - 2, win->cursor_y - win_start, win->bg_color);
@@ -671,20 +672,26 @@ int console_command(Application *app) {
             int skip = 0;
             while (*p && skip < current_line)
                 if (*p++ == '\n') skip++;
-            int lines_drawn = 0;
-            while (*p && lines_drawn < LINES_PER_PAGE) {
-                fb_put_char(win, *p);
-                if (*p == '\n') lines_drawn++;
-                p++;
+            int start_line = current_line - LINES_PER_PAGE;
+            int end_line = start_line + LINES_PER_PAGE;
+            int line_index = 0;
+            for (const char *p = text; *p; ++p) {
+                bool visible = (line_index >= start_line && line_index < end_line);
+                if (visible)
+                    fb_put_char(win, *p);
+
+                if (*p == '\n')
+                    line_index++;
+
+                if (line_index >= end_line)
+                    break;
             }
-            if (lines_drawn < LINES_PER_PAGE)
-                break;
             uint8_t key = get_char(win);
             if (key == 0 || key == 0x01) 
                 break;
-            if (key == KEY_ARROW_UP && current_line > 0)
+            if (key == KEY_ARROW_UP && current_line > LINES_PER_PAGE)
                 current_line--;
-            else if (key == KEY_ARROW_DOWN && current_line + LINES_PER_PAGE < total_lines)
+            else if (key == KEY_ARROW_DOWN && current_line < total_lines)
                 current_line++;
         }
         fb_write(win, "\n");

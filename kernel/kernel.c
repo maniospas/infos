@@ -57,7 +57,7 @@ void kernel_main(void) {
     }
 
     // Initialize apps
-    MAX_APPLICATIONS = 11;
+    MAX_APPLICATIONS = 6;
     apps = malloc(sizeof(Application) * MAX_APPLICATIONS);
     if (!apps) {
         fb_write_ansi(fullscreen, "\033[31mERROR\033[0m Cannot initialize apps.\n");
